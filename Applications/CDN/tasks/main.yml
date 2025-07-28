@@ -1,0 +1,69 @@
+- name: Check if kubeconfig exists
+  ansible.builtin.stat:
+    path: /etc/rancher/rke2/rke2.yaml
+  register: kubeconfig_check
+
+- name: Throw error if kubeconfig doesn't exist
+  ansible.builtin.fail:
+    msg: "Kubeconfig not found at /etc/rancher/rke2/rke2.yaml"
+  when: not kubeconfig_check.stat.exists
+
+- name: Set kubeconfig environment variable
+  ansible.builtin.set_fact:
+    rancher_kubeconfig: "/etc/rancher/rke2/rke2.yaml"
+
+- name: Create namespace for deployment
+  kubernetes.core.k8s:
+    name: "cdn"
+    api_version: v1
+    kind: Namespace
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    state: present
+
+- name: Create CDN directory on host
+  ansible.builtin.file:
+    path: /opt/cdn
+    state: directory
+    mode: '0755'
+
+- name: Copy index.html to CDN directory
+  ansible.builtin.copy:
+    src: "{{ role_path }}/vars/index.html"
+    dest: /opt/cdn/index.html
+    mode: '0644'
+
+- name: Apply PersistentVolume
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/pv.yaml') | from_yaml }}"
+
+- name: Apply PersistentVolumeClaim
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/pvc.yaml') | from_yaml }}"
+
+- name: Apply ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/configmap.yaml') | from_yaml }}"
+
+- name: Apply Deployment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/deployment.yaml') | from_yaml }}"
+
+- name: Apply Service
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/service.yaml') | from_yaml }}"
+
+- name: Apply Ingress
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ lookup('file', role_path + '/vars/ingress.yaml') | from_yaml }}"
