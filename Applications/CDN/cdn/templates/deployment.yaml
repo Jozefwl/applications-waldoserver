@@ -1,39 +1,39 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cdn-deployment
-  namespace: cdn
+  name: {{ .Values.appName }}
+  namespace: {{ .Values.namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: cdn
+      app: {{ .Values.label }}
   template:
     metadata:
       labels:
-        app: cdn
+        app: {{ .Values.label }}
     spec:
       containers:
-      - name: nginx
-        image: nginx:latest
+      - name: {{ .Values.nginxName }}
+        image: {{ .Values.nginxImage }}
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "128m"
+            memory: {{ .Values.memoryReq }}
+            cpu: {{ .Values.cpuReq }}
           limits:
-            memory: "256Mi"
-            cpu: "256m"
+            memory: {{ .Values.memoryLimits }}
+            cpu: {{ .Values.cpuLimits }}
         ports:
-        - containerPort: 80
+        - containerPort: {{ .Values.port }}
         volumeMounts:
-        - name: cdn-storage
-          mountPath: /opt/cdn
+        - name: {{ .Values.storageName }}
+          mountPath: {{ .Values.hostPath }}
         - name: nginx-config
           mountPath: /etc/nginx/conf.d
       volumes:
-      - name: cdn-storage
+      - name: {{ .Values.storageName }}
         persistentVolumeClaim:
-          claimName: cdn-pvc
+          claimName: {{ .Values.pvcName }}
       - name: nginx-config
         configMap:
-          name: cdn-nginx-config
+          name: {{ .Values.configMapName }}

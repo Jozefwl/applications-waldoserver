@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cdn-nginx-config
-  namespace: cdn
+  name: {{ .Values.configMapName }}
+  namespace: {{ .Values.namespace }}
 data:
   nginx.conf: |
     server {

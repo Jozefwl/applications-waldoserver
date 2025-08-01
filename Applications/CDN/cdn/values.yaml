@@ -1,0 +1,26 @@
+namespace: cdn
+appName: cdn-deployment
+
+replicas: 1
+label: cdn
+
+nginxName: nginx
+nginxImage: nginx:latest
+
+memoryReq: "128Mi"
+cpuReq: "128m"
+memoryLimits: "256Mi"
+cpuLimits: "256m"
+
+configMapName: cdn-nginx-config
+serviceName: cdn-service
+port: 80
+host: cdn.waldhauser.sk
+
+ingressName: cdn-ingress
+
+pvcName: cdn-pvc
+pvName: cdn-pv
+storageName: cdn-storage
+storageSize: "5Gi"
+hostPath: /opt/cdn

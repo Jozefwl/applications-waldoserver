@@ -1,20 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: cdn-ingress
-  namespace: cdn
+  name: {{ .Values.ingressName }}
+  namespace: {{ .Values.namespace }}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   rules:
-  - host: cdn.waldhauser.sk
+  - host: {{ .Values.host }}
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: cdn-service
+            name: {{ .Values.serviceName }}
             port:
               number: 80
