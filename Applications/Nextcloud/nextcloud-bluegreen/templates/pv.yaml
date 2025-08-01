@@ -1,0 +1,16 @@
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: "nextcloud-data-pv"
+    labels:
+      app: "{{ nextcloud_app_name }}"
+  spec:
+    capacity:
+      storage: "{{ nextcloud_storage_size | default('50Gi') }}"
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Retain
+    storageClassName: "{{ storage_class | default('opt-storage') }}"
+    hostPath:
+      path: "{{ nextcloud_folder | default('/opt/nextcloud-storage') }}"
+      type: DirectoryOrCreate

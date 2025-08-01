@@ -1,0 +1,23 @@
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: "{{ nextcloud_ingress_name | default('nextcloud-ingress') }}"
+    namespace: "{{ namespace }}"
+    annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "{{ nextcloud_ssl_redirect | default('false') }}"
+      nginx.ingress.kubernetes.io/proxy-body-size: "{{ nextcloud_proxy_body_size | default('10G') }}"
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+  spec:
+    rules:
+    - host: "{{ nextcloud_host | default('localhost') }}"
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: "{{ nextcloud_service_name | default(nextcloud_app_name + '-service') }}"
+              port: 
+                number: 80

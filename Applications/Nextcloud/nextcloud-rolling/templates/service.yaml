@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "nextcloud.fullname" . }}
+  name: {{ include "nextcloud-rolling.fullname" . }}
   labels:
-    {{- include "nextcloud.labels" . | nindent 4 }}
+    {{- include "nextcloud-rolling.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "nextcloud.selectorLabels" . | nindent 4 }}
+    {{- include "nextcloud-rolling.selectorLabels" . | nindent 4 }}
