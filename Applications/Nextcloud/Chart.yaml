@@ -1,0 +1,17 @@
+apiVersion: v2
+name: nextcloud
+description: Nextcloud multi replica helm chart
+type: application
+version: 0.1.0
+appVersion: "28.0.0"
+keywords:
+  - nextcloud
+  - cloud
+  - storage
+home: https://nextcloud.com
+sources:
+  - https://github.com/nextcloud/server
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+dependencies: []
