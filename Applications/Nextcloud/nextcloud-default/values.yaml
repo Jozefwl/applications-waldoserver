@@ -28,10 +28,10 @@ nextcloud:
     user: admin
     password: default_password # change when deploying ;)
   redis:
-    host: redis-service
+    host: redis-service.apps.svc.cluster.local
     port: 6379
     secretName: redis-secret
   postgres:
-    host: postgresql-service
+    host: postgresql-service.apps.svc.cluster.local
     port: 5432
     secretName: postgresql-secret

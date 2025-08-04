@@ -105,3 +105,17 @@ spec:
       - name: nextcloud-data
         persistentVolumeClaim:
           claimName: {{ .Values.nextcloud.pvcName }}
+      initContainers:
+      - name: wait-for-dependencies
+        image: alpine:3.18
+        command:
+          - /bin/sh
+          - -c
+          - |
+            apk add --no-cache netcat-openbsd
+            echo "Checking Redis at {{ .Values.nextcloud.redis.host }}:{{ .Values.nextcloud.redis.port }}"
+            echo "Checking Postgres at {{ .Values.nextcloud.postgres.host }}:{{ .Values.nextcloud.postgres.port }}"
+            until nc -z {{ .Values.nextcloud.redis.host }} {{ .Values.nextcloud.redis.port }} && nc -z {{ .Values.nextcloud.postgres.host }} {{ .Values.nextcloud.postgres.port }}; do
+                echo "Waiting for Redis and Postgres..."; sleep 2;
+            done
+            echo "All dependencies are ready!"
