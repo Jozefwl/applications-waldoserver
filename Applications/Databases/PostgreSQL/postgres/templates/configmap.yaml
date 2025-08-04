@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.postgresql.configMapName }}
+  namespace: {{ .Values.namespace }}
+data:
+  postgresql.conf: |
+    max_connections = {{ .Values.postgresql.config.max_connections }}
+    shared_buffers = {{ .Values.postgresql.config.shared_buffers }}
+    effective_cache_size = {{ .Values.postgresql.config.effective_cache_size }}
+    maintenance_work_mem = {{ .Values.postgresql.config.maintenance_work_mem }}
+    checkpoint_completion_target = {{ .Values.postgresql.config.checkpoint_completion_target }}
+    wal_buffers = {{ .Values.postgresql.config.wal_buffers }}
+    default_statistics_target = {{ .Values.postgresql.config.default_statistics_target }}
+    random_page_cost = {{ .Values.postgresql.config.random_page_cost }}
+    effective_io_concurrency = {{ .Values.postgresql.config.effective_io_concurrency }}
+    work_mem = {{ .Values.postgresql.config.work_mem }}
+    min_wal_size = {{ .Values.postgresql.config.min_wal_size }}
+    max_wal_size = {{ .Values.postgresql.config.max_wal_size }}
+    log_destination = 'stderr'
+    logging_collector = on
+    log_directory = 'log'
+    log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+    log_statement = '{{ .Values.postgresql.config.log_statement }}'
+    log_min_duration_statement = {{ .Values.postgresql.config.log_min_duration }}
+    listen_addresses = '*'
+    port = 5432
+  pg_hba.conf: |
+    local   all             all                                     trust
+    host    all             all             127.0.0.1/32            md5
+    host    all             all             ::1/128                 md5
+    host    all             all             0.0.0.0/0               md5

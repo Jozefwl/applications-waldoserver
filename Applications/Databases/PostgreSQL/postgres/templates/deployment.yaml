@@ -1,0 +1,80 @@
+{{/* Deployment Template */}}
+{{- with .Values.postgresql }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .appName }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app: {{ .appName }}
+    tier: database
+spec:
+  replicas: {{ .replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .appName }}
+        tier: database
+    spec:
+      containers:
+      - name: postgresql
+        image: {{ .image }}
+        ports:
+        - containerPort: 5432
+          name: postgresql
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ .secretName }}
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .secretName }}
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .secretName }}
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgresql-data
+          mountPath: /var/lib/postgresql/data
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+        resources:
+          requests:
+            memory: {{ .resources.requests.memory }}
+            cpu: {{ .resources.requests.cpu }}
+          limits:
+            memory: {{ .resources.limits.memory }}
+            cpu: {{ .resources.limits.cpu }}
+      volumes:
+      - name: postgresql-data
+        persistentVolumeClaim:
+          claimName: {{ .storage.pvcName }}
+{{- end }}
