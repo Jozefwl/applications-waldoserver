@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nextcloud.serviceName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.nextcloud.appName }}
+spec:
+  selector:
+    app: {{ .Values.nextcloud.appName }}
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  type: ClusterIP

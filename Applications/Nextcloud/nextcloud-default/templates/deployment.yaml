@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nextcloud.appName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.nextcloud.appName }}
+spec:
+  replicas: {{ .Values.nextcloud.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.nextcloud.appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.nextcloud.appName }}
+    spec:
+      containers:
+      - name: nextcloud-app
+        image: {{ .Values.nextcloud.image }}
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: NEXTCLOUD_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.secretName }}
+              key: NEXTCLOUD_ADMIN_USER
+        - name: NEXTCLOUD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.secretName }}
+              key: NEXTCLOUD_ADMIN_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.postgres.secretName }}
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.postgres.secretName }}
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.postgres.secretName }}
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_HOST
+          value: {{ .Values.nextcloud.postgres.host }}
+        - name: POSTGRES_PORT
+          value: "{{ .Values.nextcloud.postgres.port }}"
+        - name: NEXTCLOUD_TRUSTED_DOMAINS
+          value: {{ .Values.nextcloud.trustedDomains }}
+        - name: OVERWRITEPROTOCOL
+          value: {{ .Values.nextcloud.protocol }}
+        - name: OVERWRITEHOST
+          value: {{ .Values.nextcloud.host }}
+        - name: OVERWRITECLIURL
+          value: {{ .Values.nextcloud.protocol }}://{{ .Values.nextcloud.host }}
+        - name: PHP_MEMORY_LIMIT
+          value: {{ .Values.nextcloud.php.memoryLimit }}
+        - name: PHP_UPLOAD_LIMIT
+          value: {{ .Values.nextcloud.php.uploadLimit }}
+        - name: REDIS_HOST
+          value: {{ .Values.nextcloud.redis.host }}
+        - name: REDIS_PORT
+          value: "{{ .Values.nextcloud.redis.port }}"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.nextcloud.redis.secretName }}
+              key: REDIS_PASSWORD
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+        readinessProbe:
+          httpGet:
+            path: /status.php
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /status.php
+            port: 80
+          initialDelaySeconds: 180
+          periodSeconds: 30
+          timeoutSeconds: 15
+        resources:
+          requests:
+            memory: {{ .Values.nextcloud.resources.requests.memory }}
+            cpu: {{ .Values.nextcloud.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.nextcloud.resources.limits.memory }}
+            cpu: {{ .Values.nextcloud.resources.limits.cpu }}
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: {{ .Values.nextcloud.pvcName }}

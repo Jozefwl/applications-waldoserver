@@ -1,0 +1,9 @@
+apiVersion: v2
+name: nextcloud-default
+description: A Helm chart for deploying Nextcloud with multi replica support, PostgreSQL and Redis
+
+type: application
+
+version: 0.1.0
+
+appVersion: "0.1.0"

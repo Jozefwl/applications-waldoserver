@@ -1,0 +1,37 @@
+namespace: apps
+nextcloud:
+  appName: nextcloud
+  image: nextcloud:latest
+  replicas: 2
+  secretName: nextcloud-secret
+  pvcName: nextcloud-data-pvc
+  serviceName: nextcloud-service
+  ingressName: nextcloud-ingress
+  host: cloud.waldhauser.sk
+  protocol: https
+  trustedDomains: "cloud.waldhauser.sk localhost"
+  php:
+    memoryLimit: 512M
+    uploadLimit: 10G
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  storage:
+    size: 100Gi
+    folder: /opt/nextcloud-storage
+    class: opt-storage
+  admin:
+    user: admin
+    password: default_password # change when deploying ;)
+  redis:
+    host: redis-service
+    port: 6379
+    secretName: redis-secret
+  postgres:
+    host: postgresql-service
+    port: 5432
+    secretName: postgresql-secret
