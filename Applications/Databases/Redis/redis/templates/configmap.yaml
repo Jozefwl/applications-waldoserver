@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.redis.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: redis
+data:
+  redis.conf: |-
+    bind 0.0.0.0
+    port 6379
+    tcp-keepalive 300
+    maxmemory {{ .Values.redis.maxMemory }}
+    maxmemory-policy allkeys-lru
+    save 900 1
+    save 300 10
+    save 60 10000
+    loglevel notice
+    logfile ""
+    {{- if .Values.redis.password }}
+    requirepass {{ .Values.redis.password }}
+    {{- end }}
+    timeout 300
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    rename-command DEBUG ""
+    rename-command CONFIG ""
+    notify-keyspace-events Ex
+    hash-max-ziplist-entries 512
+    hash-max-ziplist-value 64
+    databases 16
+    appendonly yes
+    appendfsync everysec
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb

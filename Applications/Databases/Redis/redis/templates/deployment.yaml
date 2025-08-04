@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.redis.appName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.redis.appName }}
+spec:
+  replicas: {{ .Values.redis.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.redis.appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.redis.appName }}
+    spec:
+      containers:
+      - name: redis
+        image: {{ .Values.redis.image }}
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.secretName }}
+              key: REDIS_PASSWORD
+              optional: true
+        command:
+        - redis-server
+        - /etc/redis/redis.conf
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        - name: redis-config
+          mountPath: /etc/redis
+        resources:
+          requests:
+            memory: {{ .Values.redis.resources.requests.memory }}
+            cpu: {{ .Values.redis.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.redis.resources.limits.memory }}
+            cpu: {{ .Values.redis.resources.limits.cpu }}
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "-a", "$(REDIS_PASSWORD)", "ping"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "-a", "$(REDIS_PASSWORD)", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: {{ .Values.redis.pvcName }}
+      - name: redis-config
+        configMap:
+          name: {{ .Values.redis.configMapName }}
