@@ -1,0 +1,9 @@
+apiVersion: v2
+name: common
+description: A storage class and dns Helm chart
+
+type: library
+
+version: 0.1.0
+
+appVersion: "0.1.0"
