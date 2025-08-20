@@ -32,7 +32,7 @@ spec:
             secretKeyRef:
               name: {{ .Values.nextcloud.secretName }}
               key: NEXTCLOUD_ADMIN_USER
-        - name: NEXTCLOUD_ADMIN_PASSWORD
+        - name: NEXTCLOUD_ADMIN_PASSWORD  
           valueFrom:
             secretKeyRef:
               name: {{ .Values.nextcloud.secretName }}
@@ -53,47 +53,97 @@ spec:
               name: {{ .Values.nextcloud.postgres.secretName }}
               key: POSTGRES_PASSWORD
         - name: POSTGRES_HOST
-          value: {{ .Values.nextcloud.postgres.host }}
+          value: "{{ .Values.nextcloud.postgres.host }}"
         - name: POSTGRES_PORT
           value: "{{ .Values.nextcloud.postgres.port }}"
         - name: NEXTCLOUD_TRUSTED_DOMAINS
-          value: {{ .Values.nextcloud.trustedDomains }}
+          value: "{{ .Values.nextcloud.trustedDomains }}"
         - name: OVERWRITEPROTOCOL
-          value: {{ .Values.nextcloud.protocol }}
+          value: "{{ .Values.nextcloud.protocol }}"
         - name: OVERWRITEHOST
-          value: {{ .Values.nextcloud.host }}
+          value: "{{ .Values.nextcloud.host }}"
         - name: OVERWRITECLIURL
-          value: {{ .Values.nextcloud.protocol }}://{{ .Values.nextcloud.host }}
+          value: "{{ .Values.nextcloud.protocol }}://{{ .Values.nextcloud.host }}"
         - name: PHP_MEMORY_LIMIT
-          value: {{ .Values.nextcloud.php.memoryLimit }}
+          value: "{{ .Values.nextcloud.php.memoryLimit }}"
         - name: PHP_UPLOAD_LIMIT
-          value: {{ .Values.nextcloud.php.uploadLimit }}
+          value: "{{ .Values.nextcloud.php.uploadLimit }}"
         - name: REDIS_HOST
-          value: {{ .Values.nextcloud.redis.host }}
+          value: "{{ .Values.nextcloud.redis.host }}"
         - name: REDIS_PORT
           value: "{{ .Values.nextcloud.redis.port }}"
-        - name: REDIS_PASSWORD
+        - name: REDIS_HOST_PASSWORD
           valueFrom:
             secretKeyRef:
               name: {{ .Values.nextcloud.redis.secretName }}
               key: REDIS_PASSWORD
+        # env variables for proper config (from official nextcloud helm repo chart github)
+        - name: NEXTCLOUD_DATA_DIR
+          value: "/var/www/html/data"
+        - name: APACHE_DISABLE_REWRITE_IP
+          value: "1"
+        - name: APACHE_BODY_LIMIT
+          value: "10737418240"
+        - name: PHP_UPLOAD_MAX_FILESIZE
+          value: "{{ .Values.nextcloud.php.uploadLimit }}"
+        - name: PHP_POST_MAX_SIZE
+          value: "{{ .Values.nextcloud.php.uploadLimit }}"
+        - name: PHP_MAX_EXECUTION_TIME
+          value: "3600"
+        - name: PHP_MAX_INPUT_TIME
+          value: "3600"
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Ensure proper permissions on data directory
+                  chown -R www-data:www-data /var/www/html/data || true
+                  chmod 750 /var/www/html/data || true
+                  
+                  # Configure Apache request body limit properly
+                  echo "LimitRequestBody ${APACHE_BODY_LIMIT}" > /etc/apache2/conf-available/apache-limits.conf
+                  a2enconf apache-limits
+                  service apache2 reload || true
         volumeMounts:
         - name: nextcloud-data
           mountPath: /var/www/html
+        # DO NOT MOUNT INDIVIDUAL CONFIG FILES let Nextcloud auto-configure
         readinessProbe:
           httpGet:
             path: /status.php
             port: 80
+            httpHeaders:
+            - name: Host
+              value: {{ .Values.nextcloud.host }}
           initialDelaySeconds: 60
           periodSeconds: 10
           timeoutSeconds: 15
+          failureThreshold: 3
         livenessProbe:
           httpGet:
             path: /status.php
             port: 80
+            httpHeaders:
+            - name: Host
+              value: {{ .Values.nextcloud.host }}
           initialDelaySeconds: 180
           periodSeconds: 30
           timeoutSeconds: 15
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /status.php
+            port: 80
+            httpHeaders:
+            - name: Host
+              value: {{ .Values.nextcloud.host }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
         resources:
           requests:
             memory: {{ .Values.nextcloud.resources.requests.memory }}
@@ -107,15 +157,23 @@ spec:
           claimName: {{ .Values.nextcloud.pvcName }}
       initContainers:
       - name: wait-for-dependencies
-        image: alpine:3.18
+        image: busybox:1.36
         command:
           - /bin/sh
           - -c
           - |
-            apk add --no-cache netcat-openbsd
-            echo "Checking Redis at {{ .Values.nextcloud.redis.host }}:{{ .Values.nextcloud.redis.port }}"
-            echo "Checking Postgres at {{ .Values.nextcloud.postgres.host }}:{{ .Values.nextcloud.postgres.port }}"
-            until nc -z {{ .Values.nextcloud.redis.host }} {{ .Values.nextcloud.redis.port }} && nc -z {{ .Values.nextcloud.postgres.host }} {{ .Values.nextcloud.postgres.port }}; do
-                echo "Waiting for Redis and Postgres..."; sleep 2;
+            echo "Waiting for Redis and PostgreSQL to become available..."
+
+            until nc -z {{ .Values.nextcloud.redis.host }} {{ .Values.nextcloud.redis.port }}; do
+              echo "Waiting for Redis at {{ .Values.nextcloud.redis.host }}:{{ .Values.nextcloud.redis.port }}..."
+              sleep 2
             done
-            echo "All dependencies are ready!"
+            echo "Redis is reachable."
+
+            until nc -z {{ .Values.nextcloud.postgres.host }} {{ .Values.nextcloud.postgres.port }}; do
+              echo "Waiting for PostgreSQL at {{ .Values.nextcloud.postgres.host }}:{{ .Values.nextcloud.postgres.port }}..."
+              sleep 2
+            done
+            echo "PostgreSQL is reachable."
+
+            echo "All dependencies are up. Proceeding with Nextcloud startup."

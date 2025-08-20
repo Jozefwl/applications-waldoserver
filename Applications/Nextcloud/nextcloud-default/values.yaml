@@ -1,7 +1,12 @@
 namespace: apps
+
+# compatibility (from official helm chart)
+nameOverride: ""
+fullnameOverride: ""
+
 nextcloud:
   appName: nextcloud
-  image: nextcloud:latest
+  image: nextcloud:31.0.8
   replicas: 2
   secretName: nextcloud-secret
   pvcName: nextcloud-data-pvc
@@ -10,6 +15,7 @@ nextcloud:
   host: cloud.waldhauser.sk
   protocol: https
   trustedDomains: "cloud.waldhauser.sk localhost"
+  datadir: "/var/www/html/data"  # explicit data directory
   php:
     memoryLimit: 512M
     uploadLimit: 10G
@@ -18,8 +24,8 @@ nextcloud:
       memory: 256Mi
       cpu: 100m
     limits:
-      memory: 1Gi
-      cpu: 500m
+      memory: 500Mi
+      cpu: 256m
   storage:
     size: 100Gi
     folder: /opt/nextcloud-storage

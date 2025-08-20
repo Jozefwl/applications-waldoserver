@@ -10,7 +10,7 @@ postgresql:
   storage:
     size: 15Gi
     class: opt-storage
-    folder: /data/postgresql
+    folder: /opt/postgresql
     pvName: postgresql-data-pv
     pvcName: postgresql-data-pvc
     reclaimPolicy: Retain
