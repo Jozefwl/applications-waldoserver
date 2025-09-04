@@ -1,0 +1,157 @@
+---
+# Main deployment orchestrator
+- name: Check if kubeconfig exists
+  ansible.builtin.stat:
+    path: /etc/rancher/rke2/rke2.yaml
+  register: kubeconfig_check
+
+- name: Throw error if kubeconfig doesn't exist
+  ansible.builtin.fail:
+    msg: "Kubeconfig not found at /etc/rancher/rke2/rke2.yaml"
+  when: not kubeconfig_check.stat.exists
+
+- name: Set kubeconfig
+  ansible.builtin.set_fact:
+    rancher_kubeconfig: "/etc/rancher/rke2/rke2.yaml"
+
+- name: Create namespace for deployment
+  kubernetes.core.k8s:
+    name: "{{ namespace }}"
+    api_version: v1
+    kind: Namespace
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    state: present
+
+- name: Set application names
+  ansible.builtin.set_fact:
+    frontend_app_name: "frontend"
+    backend_app_name: "backend"
+
+- name: Check existing frontend deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ frontend_app_name }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: existing_frontend_deployment
+  ignore_errors: true
+
+- name: Check existing backend deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ backend_app_name }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: existing_backend_deployment
+  ignore_errors: true
+
+- name: Set deployment strategy
+  ansible.builtin.set_fact:
+    strategy: "{{ deployment_strategy | default('rolling') }}"
+
+- name: Display deployment information
+  ansible.builtin.debug:
+    msg: |
+      Starting deployment with strategy: {{ strategy }}
+      Frontend version: {{ version_frontend }}
+      Backend version: {{ version_backend }}
+      Namespace: {{ namespace }}
+      Replicas: {{ replicas }}
+
+- name: Execute deployment strategy
+  ansible.builtin.include_tasks: "{{ strategy }}.yml"
+  vars:
+    app_name: "{{ frontend_app_name }}"
+    app_version: "{{ version_frontend }}"
+    app_type: "frontend"
+
+- name: Execute backend deployment strategy
+  ansible.builtin.include_tasks: "{{ strategy }}.yml"
+  vars:
+    app_name: "{{ backend_app_name }}"
+    app_version: "{{ version_backend }}"
+    app_type: "backend"
+  when: strategy != "blue-green"  # blue-green handles both apps together
+
+- name: Wait for deployments to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ item }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    wait: true
+    wait_condition:
+      type: Progressing
+      status: "True"
+      reason: NewReplicaSetAvailable
+    wait_timeout: 600
+  loop: "{{ deployment_names }}"
+  vars:
+    deployment_names: >-
+      {%- if deployment_strategy == 'blue-green' -%}
+        []
+      {%- else -%}
+        ["{{ frontend_app_name }}", "{{ backend_app_name }}"]
+      {%- endif -%}
+  register: deployment_ready
+  ignore_errors: true
+  when: deployment_strategy != 'blue-green'
+
+- name: Verify frontend deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - "app={{ frontend_app_name }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: frontend_deployment_status
+  when: deployment_strategy != 'blue-green'
+
+- name: Verify backend deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - "app={{ backend_app_name }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: backend_deployment_status
+  when: deployment_strategy != 'blue-green'
+
+- name: Calculate deployment statistics
+  ansible.builtin.set_fact:
+    frontend_ready_replicas: "{{ frontend_deployment_status.resources | map(attribute='status.readyReplicas') | map('default', 0) | sum }}"
+    frontend_total_replicas: "{{ frontend_deployment_status.resources | map(attribute='spec.replicas') | sum }}"
+    backend_ready_replicas: "{{ backend_deployment_status.resources | map(attribute='status.readyReplicas') | map('default', 0) | sum }}"
+    backend_total_replicas: "{{ backend_deployment_status.resources | map(attribute='spec.replicas') | sum }}"
+  when: deployment_strategy != 'blue-green'
+
+- name: Display deployment status
+  ansible.builtin.debug:
+    msg: |
+      Deployment Strategy: {{ strategy }}
+      Status: {{ 'SUCCESS' if (frontend_ready_replicas|int == frontend_total_replicas|int and backend_ready_replicas|int == backend_total_replicas|int) else 'PARTIAL/FAILED' }}
+      
+      Frontend Deployment:
+        - Ready Replicas: {{ frontend_ready_replicas }}/{{ frontend_total_replicas }}
+        - Version: {{ version_frontend }}
+      
+      Backend Deployment:
+        - Ready Replicas: {{ backend_ready_replicas }}/{{ backend_total_replicas }}
+        - Version: {{ version_backend }}
+  when: deployment_strategy != 'blue-green'
+
+- name: Fail if deployment is not healthy
+  ansible.builtin.fail:
+    msg: "Deployment failed - not all replicas are ready"
+  when: 
+    - deployment_strategy != 'blue-green'
+    - frontend_ready_replicas|int != frontend_total_replicas|int or backend_ready_replicas|int != backend_total_replicas|int
+
+- name: Display success message
+  ansible.builtin.debug:
+    msg: "Deployment {{ strategy }} completed successfully for both frontend and backend applications"

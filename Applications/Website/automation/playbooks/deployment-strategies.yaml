@@ -1,0 +1,61 @@
+---
+- name: Pre-deployment build check
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Ask about building new containers
+      ansible.builtin.pause:
+        prompt: |
+          
+          BUILD NEW CONTAINERS?
+          
+          Do you wish to pull latest repo commit, build and push new container?
+          
+          This will:
+          1. Pull latest commits from repositories
+          2. Build new Docker containers for frontend and backend  
+          3. Push containers to registry
+          
+          Continue with build? (Y/N)
+      register: build_new_containers
+
+    - name: Process build decision
+      ansible.builtin.set_fact:
+        should_build: "{{ build_new_containers.user_input | upper == 'Y' or build_new_containers.user_input | upper == 'YES' }}"
+
+- name: Clone repositories and install dependencies
+  hosts: localhost
+  become: false
+  roles:
+    - role: 02_clone_repos
+      tags: [repositories, setup]
+      when: hostvars['localhost']['should_build'] | default(false)
+
+- name: Build FE and BE and make docker container
+  hosts: localhost
+  become: true
+  roles:
+    - role: 03_build_server
+      tags: [build, server]
+      when: hostvars['localhost']['should_build'] | default(false)
+
+- name: Retag image and push to registry
+  hosts: localhost
+  become: true
+  roles:
+    - role: 09_push_to_registry
+      tags: [push]
+      when: hostvars['localhost']['should_build'] | default(false)
+
+- name: Kubernetes Deployment Strategies
+  hosts: "{{ TARGET_NODE }}"
+  become: true
+  vars:
+    deployment_strategy: "{{ deployment_strategy | default('blue-green') }}"
+    app_name: "{{ app_name | default('website-app') }}"
+    app_version: "{{ app_version | default(version_frontend) }}"
+    
+  roles:
+    - role: deployment_strategies
+      vars:
+        strategy: "{{ deployment_strategy }}"

@@ -1,0 +1,61 @@
+- name: Remove existing frontend docker container
+  ansible.builtin.shell:
+    cmd: docker rmi website-blog:"{{ version_frontend }}"
+  ignore_errors: true
+  become: true
+
+- name: Build next.js frontend container
+  ansible.builtin.shell:
+    cmd: docker build -t website-blog:"{{ version_frontend }}" .
+    chdir: "{{ frontend }}"
+  become: true
+
+# - name: Create image directory if it doesn't exist
+#   ansible.builtin.file:
+#     path: "{{ workdir }}/image"
+#     state: directory
+#   become: true
+
+# - name: Export Docker image to file
+#   ansible.builtin.shell:
+#     cmd: docker save -o {{ workdir }}/image/website-blog.tar website-blog:"{{ version_frontend }}"
+#   async: 10000
+#   poll: 0
+#   register: docker_sleeper
+#   become: true
+
+# - name: Wait until Docker image is exported
+#   async_status:
+#     jid: "{{ docker_sleeper.ansible_job_id }}"
+#   register: job_result
+#   until: job_result.finished
+#   retries: 30
+#   delay: 5
+
+- name: Remove existing backend docker container
+  ansible.builtin.shell:
+    cmd: docker rmi metrics-api:"{{ version_backend }}"
+  ignore_errors: true
+  become: true
+
+- name: Build node backend container
+  ansible.builtin.shell:
+    cmd: docker build -t metrics-api:"{{ version_backend }}" .
+    chdir: "{{ backend }}"
+  become: true
+
+# - name: Export Docker image to file
+#   ansible.builtin.shell:
+#     cmd: docker save -o {{ workdir }}/image/metrics-api.tar metrics-api:"{{ version_backend }}"
+#   async: 10000
+#   poll: 0
+#   register: docker_sleeper
+#   become: true
+
+# - name: Wait until Docker image is exported
+#   async_status:
+#     jid: "{{ docker_sleeper.ansible_job_id }}"
+#   register: job_result
+#   until: job_result.finished
+#   retries: 30
+#   delay: 5

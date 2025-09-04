@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: website-service
+  namespace: apps  # deployment namespace
+spec:
+  type: ClusterIP
+  selector:
+    app: website-app
+  ports:
+    - port: 3000
+      targetPort: 3000

@@ -1,0 +1,39 @@
+# directories local
+workdir: "{{ playbook_dir }}/../workdir"
+frontend: "{{ workdir }}/frontend"
+backend: "{{ workdir }}/frontend/server"
+imagedir: "{{ workdir }}/image"
+source: "{{ imagedir }}/website-blog.tar"
+
+# directories external
+destinationPath: "/etc/website/"
+destination: "{{ destinationPath }}{{ tarName }}"
+
+# repositories 
+frontend_repo: "https://github.com/Jozefwl/website-blog.git"
+backend_repo: "https://github.com/Jozefwl/backend-metrics.git"
+
+# filecopy tomfoolery
+tarName: "website-blog.tar"
+
+# registry
+registry_namespace: registry
+registry_host: null
+registry_port: 5000
+nodeport_registry: 30999
+
+# deployment
+namespace: apps
+namespace_cdn: cdn
+version_frontend: 0.1.1.6
+version_backend: 0.1.1.7
+frontend_app_name: "website-app"
+backend_app_name: "metrics-api"
+frontend_service_name: "website-service"
+backend_service_name: "metrics-service"
+prometheus_url: "http://monitoring-kube-prometheus-prometheus.default.svc.cluster.local:9090"
+
+# deployment strategies
+deployment_strategy: "blue-green" 
+replicas: 2
+app_host: "{{ hostvars[TARGET_NODE]['ansible_host'] }}"

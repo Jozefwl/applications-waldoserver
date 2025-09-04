@@ -1,0 +1,52 @@
+- name: Make sure working directory exists
+  ansible.builtin.file:
+    path: "{{ workdir }}"
+    state: directory
+
+- name: Check if frontend repository exists
+  ansible.builtin.stat:
+    path: "{{ workdir }}/frontend"
+  register: frontend_exists
+
+- name: Pull latest commit
+  ansible.builtin.git:
+    repo: "{{ frontend_repo }}"
+    dest: "{{ workdir }}/frontend"
+    version: HEAD
+    force: yes # force update even if there are local changes
+    update: yes # actually pull the latest changes
+  when: frontend_exists.stat.exists
+
+- name: Clone the frontend repository
+  ansible.builtin.git:
+    repo: "{{ frontend_repo }}"
+    dest: "{{ workdir }}/frontend"
+  when: not frontend_exists.stat.exists
+
+- name: Install frontend dependencies
+  ansible.builtin.shell:
+    cmd: npm install
+    chdir: "{{ workdir }}/frontend"
+
+# - name: Check if backend repository exists
+#   ansible.builtin.stat:
+#     path: "{{ workdir }}/backend"
+#   register: backend_exists
+
+# - name: Pull latest BE commit
+#   ansible.builtin.git:
+#     repo: "{{ backend_repo }}"
+#     dest: "{{ workdir }}/backend"
+#     refspec: '+refs/pull/*:refs/heads/*'
+#   when: backend_exists.stat.exists
+
+# - name: Clone backend repository
+#   ansible.builtin.git:
+#     repo: "{{ backend_repo }}"
+#     dest: "{{ workdir }}/backend"
+#   when: not backend_exists.stat.exists
+
+# - name: Install backend dependencies
+#   ansible.builtin.shell:
+#     cmd: npm install
+#     chdir: "{{ workdir }}/backend"

@@ -1,0 +1,558 @@
+---
+# Frontend Blue/Green Deployment
+- name: Determine current frontend environment
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: "{{ frontend_service_name }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: current_frontend_service
+  ignore_errors: true
+
+- name: Set current frontend environment
+  ansible.builtin.set_fact:
+    current_frontend_env: "{{ current_frontend_service.resources[0].spec.selector.env | default('blue') if current_frontend_service.resources else 'blue' }}"
+
+- name: Set target frontend environment
+  ansible.builtin.set_fact:
+    target_frontend_env: "{{ 'green' if current_frontend_env == 'blue' else 'blue' }}"
+
+- name: Create frontend deployment for target environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ frontend_app_name }}-{{ target_frontend_env }}"
+        namespace: "{{ namespace }}"
+        labels:
+          app: "{{ frontend_app_name }}"
+          env: "{{ target_frontend_env }}"
+          version: "{{ version_frontend }}"
+      spec:
+        replicas: "{{ replicas }}"
+        selector:
+          matchLabels:
+            app: "{{ frontend_app_name }}"
+            env: "{{ target_frontend_env }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ frontend_app_name }}"
+              env: "{{ target_frontend_env }}"
+              version: "{{ version_frontend }}"
+          spec:
+            containers:
+              - name: "{{ frontend_app_name }}"
+                image: "{{ app_host }}:{{ nodeport_registry }}/website-blog:{{ version_frontend }}"
+                ports:
+                  - containerPort: 3000
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: 3000
+                  initialDelaySeconds: 15
+                  periodSeconds: 5
+                  timeoutSeconds: 10
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: 3000
+                  initialDelaySeconds: 45
+                  periodSeconds: 10
+                  timeoutSeconds: 10
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "128m"
+                  limits:
+                    memory: "256Mi"
+                    cpu: "256m"
+  register: frontend_deployment_result
+
+- name: Create frontend service for target environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ frontend_app_name }}-service-{{ target_frontend_env }}"
+        namespace: "{{ namespace }}"
+      spec:
+        selector:
+          app: "{{ frontend_app_name }}"
+          env: "{{ target_frontend_env }}"
+        ports:
+          - port: 3000
+            targetPort: 3000
+        type: ClusterIP
+
+# Backend Blue/Green Deployment
+- name: Determine current backend environment
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: "{{ backend_service_name }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+  register: current_backend_service
+  ignore_errors: true
+
+- name: Set current backend environment
+  ansible.builtin.set_fact:
+    current_backend_env: "{{ current_backend_service.resources[0].spec.selector.env | default('blue') if current_backend_service.resources else 'blue' }}"
+
+- name: Set target backend environment
+  ansible.builtin.set_fact:
+    target_backend_env: "{{ 'green' if current_backend_env == 'blue' else 'blue' }}"
+
+- name: Create backend deployment for target environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ backend_app_name }}-{{ target_backend_env }}"
+        namespace: "{{ namespace }}"
+        labels:
+          app: "{{ backend_app_name }}"
+          env: "{{ target_backend_env }}"
+          version: "{{ version_backend }}"
+      spec:
+        replicas: "{{ replicas }}"
+        selector:
+          matchLabels:
+            app: "{{ backend_app_name }}"
+            env: "{{ target_backend_env }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ backend_app_name }}"
+              env: "{{ target_backend_env }}"
+              version: "{{ version_backend }}"
+          spec:
+            containers:
+              - name: "{{ backend_app_name }}"
+                image: "{{ app_host }}:{{ nodeport_registry }}/metrics-api:{{ version_backend }}"
+                ports:
+                  - containerPort: 5000
+                env:
+                  - name: PROMETHEUS_URL
+                    value: "{{ prometheus_url }}"
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: 5000
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: 5000
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "64m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "128m"
+  register: backend_deployment_result
+
+- name: Create backend service for target environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ backend_app_name }}-service-{{ target_backend_env }}"
+        namespace: "{{ namespace }}"
+      spec:
+        selector:
+          app: "{{ backend_app_name }}"
+          env: "{{ target_backend_env }}"
+        ports:
+          - port: 5000
+            targetPort: 5000
+        type: ClusterIP
+
+# Health Checks and Traffic Switching
+- name: Wait for frontend deployment to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ frontend_app_name }}-{{ target_frontend_env }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 600
+
+- name: Wait for backend deployment to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ backend_app_name }}-{{ target_backend_env }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 600
+
+- name: Wait for frontend deployment to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ frontend_app_name }}-{{ target_frontend_env }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  register: frontend_deployment_status
+
+- name: Wait for backend deployment to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ backend_app_name }}-{{ target_backend_env }}"
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  register: backend_deployment_status
+
+- name: Verify frontend pods are ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    label_selectors:
+      - "app={{ frontend_app_name }}"
+      - "env={{ target_frontend_env }}"
+  register: frontend_pods
+
+- name: Verify backend pods are ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    label_selectors:
+      - "app={{ backend_app_name }}"
+      - "env={{ target_backend_env }}"
+  register: backend_pods
+
+- name: Check if deployments are healthy
+  ansible.builtin.fail:
+    msg: "Deployment health check failed. Frontend ready: {{ frontend_deployment_status.resources[0].status.readyReplicas | default(0) }}/{{ frontend_deployment_status.resources[0].status.replicas | default(0) }}, Backend ready: {{ backend_deployment_status.resources[0].status.readyReplicas | default(0) }}/{{ backend_deployment_status.resources[0].status.replicas | default(0) }}"
+  when: >
+    (frontend_deployment_status.resources[0].status.readyReplicas | default(0)) == 0 or
+    (backend_deployment_status.resources[0].status.readyReplicas | default(0)) == 0
+
+# Switch Traffic
+- name: Switch frontend traffic to new environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ frontend_service_name }}"
+        namespace: "{{ namespace }}"
+      spec:
+        selector:
+          app: "{{ frontend_app_name }}"
+          env: "{{ target_frontend_env }}"
+        ports:
+          - port: 3000
+            targetPort: 3000
+        type: ClusterIP
+  when: (frontend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0
+
+- name: Switch backend traffic to new environment
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ backend_service_name }}"
+        namespace: "{{ namespace }}"
+      spec:
+        selector:
+          app: "{{ backend_app_name }}"
+          env: "{{ target_backend_env }}"
+        ports:
+          - port: 5000
+            targetPort: 5000
+        type: ClusterIP
+  when: (backend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0
+
+# Manual Smoke Testing and Rollback Decision
+- name: Display traffic switch completion
+  ansible.builtin.debug:
+    msg: |
+      TRAFFIC SWITCHED SUCCESSFULLY!
+      
+      Frontend service ({{ frontend_service_name }}) now points to: {{ target_frontend_env }}
+      Backend service ({{ backend_service_name }}) now points to: {{ target_backend_env }}
+      
+      Please perform manual smoke testing on your application:
+      - Frontend: https://waldhauser.sk and https://www.waldhauser.sk
+      - Backend API: https://metrics.waldhauser.sk
+      
+      Test critical functionality and user flows.
+
+- name: Manual smoke test confirmation
+  ansible.builtin.pause:
+    prompt: |
+      
+      MANUAL SMOKE TEST REQUIRED 
+      
+      The traffic has been switched to the new environment ({{ target_frontend_env }}).
+      Please test your application thoroughly.
+      
+      Is the service running properly? (Y/N)
+  register: smoke_test_result
+
+- name: Process smoke test result
+  ansible.builtin.set_fact:
+    smoke_test_passed: "{{ smoke_test_result.user_input | upper == 'Y' or smoke_test_result.user_input | upper == 'YES' }}"
+
+- name: Rollback traffic if smoke test failed
+  block:
+    - name: Display rollback notice
+      ansible.builtin.debug:
+        msg: |
+          SMOKE TEST FAILED - INITIATING ROLLBACK
+          
+          Rolling back traffic to previous environment ({{ current_frontend_env }})...
+
+    - name: Rollback frontend service to previous environment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ rancher_kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ frontend_service_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            selector:
+              app: "{{ frontend_app_name }}"
+              env: "{{ current_frontend_env }}"
+            ports:
+              - port: 3000
+                targetPort: 3000
+            type: ClusterIP
+
+    - name: Rollback backend service to previous environment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ rancher_kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ backend_service_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            selector:
+              app: "{{ backend_app_name }}"
+              env: "{{ current_backend_env }}"
+            ports:
+              - port: 5000
+                targetPort: 5000
+            type: ClusterIP
+
+    - name: Confirm rollback completion
+      ansible.builtin.debug:
+        msg: |
+          ROLLBACK COMPLETED
+          
+          Traffic has been restored to the previous environment ({{ current_frontend_env }}).
+          The new deployment ({{ target_frontend_env }}) is still running but not receiving traffic.
+
+    - name: Ask about cleanup of failed deployment
+      ansible.builtin.pause:
+        prompt: |
+          
+          The rollback is complete. The failed deployment is still running in the background.
+          
+          Do you want to delete the failed deployment ({{ target_frontend_env }})? (Y/N)
+          
+          WARNING: This will permanently remove the new deployment!
+      register: cleanup_failed_deployment
+
+    - name: Delete failed deployments if requested
+      block:
+        - name: Delete failed frontend deployment
+          kubernetes.core.k8s:
+            state: absent
+            kubeconfig: "{{ rancher_kubeconfig }}"
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: "{{ frontend_app_name }}-{{ target_frontend_env }}"
+                namespace: "{{ namespace }}"
+
+        - name: Delete failed backend deployment
+          kubernetes.core.k8s:
+            state: absent
+            kubeconfig: "{{ rancher_kubeconfig }}"
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: "{{ backend_app_name }}-{{ target_backend_env }}"
+                namespace: "{{ namespace }}"
+
+        - name: Delete failed frontend service
+          kubernetes.core.k8s:
+            state: absent
+            kubeconfig: "{{ rancher_kubeconfig }}"
+            definition:
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: "{{ frontend_app_name }}-service-{{ target_frontend_env }}"
+                namespace: "{{ namespace }}"
+
+        - name: Delete failed backend service
+          kubernetes.core.k8s:
+            state: absent
+            kubeconfig: "{{ rancher_kubeconfig }}"
+            definition:
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: "{{ backend_app_name }}-service-{{ target_backend_env }}"
+                namespace: "{{ namespace }}"
+
+        - name: Confirm cleanup completion
+          ansible.builtin.debug:
+            msg: |
+              CLEANUP COMPLETED
+              
+              Failed deployment ({{ target_frontend_env }}) has been completely removed.
+      when: cleanup_failed_deployment.user_input | upper == 'Y' or cleanup_failed_deployment.user_input | upper == 'YES'
+
+    - name: Fail deployment due to smoke test failure
+      ansible.builtin.fail:
+        msg: |
+          DEPLOYMENT FAILED: Smoke test failed and rollback completed.
+          {% if cleanup_failed_deployment.user_input | upper in ['Y', 'YES'] %}
+          Failed deployment has been cleaned up.
+          {% else %}
+          Failed deployment is still running but not receiving traffic. Clean up manually if needed.
+          {% endif %}
+
+  when: not smoke_test_passed
+
+# Cleanup old deployments (only if smoke test passed)
+- name: Clean up old frontend environment
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ frontend_app_name }}-{{ current_frontend_env }}"
+        namespace: "{{ namespace }}"
+  when: 
+    - smoke_test_passed
+    - (frontend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0 
+    - current_frontend_env != target_frontend_env
+
+- name: Clean up old backend environment
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ backend_app_name }}-{{ current_backend_env }}"
+        namespace: "{{ namespace }}"
+  when: 
+    - smoke_test_passed
+    - (backend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0 
+    - current_backend_env != target_backend_env
+
+- name: Clean up old frontend service
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ frontend_app_name }}-service-{{ current_frontend_env }}"
+        namespace: "{{ namespace }}"
+  when: 
+    - smoke_test_passed
+    - (frontend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0 
+    - current_frontend_env != target_frontend_env
+
+- name: Clean up old backend service
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ backend_app_name }}-service-{{ current_backend_env }}"
+        namespace: "{{ namespace }}"
+  when: 
+    - smoke_test_passed
+    - (backend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0 
+    - current_backend_env != target_backend_env
+
+# Apply NetworkPolicy for DNS
+- name: Load NetworkService config
+  ansible.builtin.include_vars:
+    file: networkservice_dns.yaml
+    name: networkservice_dns
+
+- name: Apply DNS NetworkPolicy
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rancher_kubeconfig }}"
+    definition: "{{ networkservice_dns }}"
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg: |
+      Blue/Green Deployment Summary:
+      Frontend: {{ current_frontend_env }} -> {{ target_frontend_env }}
+      Backend: {{ current_backend_env }} -> {{ target_backend_env }}
+      Frontend Version: {{ version_frontend }}
+      Backend Version: {{ version_backend }}
+      Health Checks: {{ 'PASSED' if ((frontend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0 and (backend_deployment_status.resources[0].status.readyReplicas | default(0)) > 0) else 'FAILED' }}
