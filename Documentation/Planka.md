@@ -19,9 +19,9 @@ kubectl exec -it $(kubectl get pods -n apps -l app=postgresql -o jsonpath='{.ite
 ```
 ## Secrets
 ```bash
-# Create the PostgreSQL secret that your extraEnv is trying to reference
+# Create the PostgreSQL secret
 kubectl create secret generic planka-postgresql-secret \
-  --from-literal=DATABASE_URL="postgresql://username:password@postgresql-service.apps.svc.cluster.local:5432/planka" \
+  --from-literal=uri="postgresql://username:password@postgresql-service.apps.svc.cluster.local:5432/planka" \
   -n apps
 ```
 ```bash

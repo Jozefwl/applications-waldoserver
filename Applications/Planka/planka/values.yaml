@@ -55,7 +55,7 @@ postgresql:
 # Existing secret configurations
 existingSecretkeySecret: "planka-secret-key"
 existingAdminCredsSecret: "planka-admin-secret"
-existingDburlSecret: "" # env variables used instead
+existingDburlSecret: "planka-postgresql-secret"
 
 # External database configuration
 # empty because of env variables
@@ -93,8 +93,18 @@ livenessProbe:
   failureThreshold: 3      # Allow 3 failures before restarting
 
 # Security context
-podSecurityContext: {}
-securityContext: {}
+podSecurityContext:
+  fsGroup: 1000  # Set file system group
+  runAsUser: 1000  # Run as non-root user
+  runAsGroup: 1000  # Set group ID
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Planka needs to write files
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+    - ALL
 
 # Persistence (for user uploads/attachments)
 persistence:
@@ -102,6 +112,9 @@ persistence:
   accessMode: ReadWriteOnce
   size: 10Gi
   storageClass: "opt-storage"
+  mountOptions:
+    - uid=1000
+    - gid=1000
 
 # Autoscaling (disabled by default)
 autoscaling:
@@ -122,12 +135,6 @@ oidc:
 # Extra environment variables - why did i do it this way? who knows
 # TODO: Use secret instead of this s#!t
 extraEnv: 
-  - name: DATABASE_URL
-    valueFrom:
-      secretName: planka-postgresql-secret
-      key: DATABASE_URL
-  - name: TRUST_PROXY
-    value: "true"
   - name: DB_CONNECTION_POOL_MIN
     value: "2"
   - name: DB_CONNECTION_POOL_MAX
