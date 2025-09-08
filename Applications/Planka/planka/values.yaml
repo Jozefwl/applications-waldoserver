@@ -1,0 +1,140 @@
+# Planka Helm Chart Values
+# Generate secret key: openssl rand -hex 64
+secretkey: ""  # Replace with actual generated key
+
+# Admin user configuration
+# Empty because i'm using secrets (see docs in docs part of this git)
+admin_email: ""
+admin_password: "" 
+admin_name: ""
+admin_username: ""
+
+# Base URL configuration
+baseUrl: "https://planka.waldhauser.sk"
+
+# Image configuration
+image:
+  repository: ghcr.io/plankanban/planka
+  pullPolicy: IfNotPresent
+  tag: ""
+
+# Replica configuration
+replicaCount: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 1337
+  containerPort: 1337
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+  hosts:
+    - host: planka.waldhauser.sk
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Disable built-in PostgreSQL since im using external
+postgresql:
+  enabled: false
+
+# Existing secret configurations
+existingSecretkeySecret: "planka-secret-key"
+existingAdminCredsSecret: "planka-admin-secret"
+existingDburlSecret: "" # env variables used instead
+
+# External database configuration
+# empty because of env variables
+dburl: ""
+
+# Resource configuration (during boot >312m cpu usage)
+# TODO: Fix
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 256m
+  limits:
+    memory: 312Mi
+    cpu: 312m
+
+# Readiness probe
+readinessProbe:
+  httpGet:
+    path: /
+    port: 1337
+  initialDelaySeconds: 30  # Wait 30 seconds before first check
+  periodSeconds: 10        # Check every 10 seconds
+  timeoutSeconds: 5        # Timeout after 5 seconds
+  failureThreshold: 6      # Allow 6 failures before marking as not ready
+  successThreshold: 1      # Only need 1 success to mark as ready
+
+# liveness probe
+livenessProbe:
+  httpGet:
+    path: /
+    port: 1337
+  initialDelaySeconds: 60  # Wait 60 seconds before first check
+  periodSeconds: 30        # Check every 30 seconds
+  timeoutSeconds: 10       # Timeout after 10 seconds
+  failureThreshold: 3      # Allow 3 failures before restarting
+
+# Security context
+podSecurityContext: {}
+securityContext: {}
+
+# Persistence (for user uploads/attachments)
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: "opt-storage"
+
+# Autoscaling (disabled by default)
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+# Node selection and affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# OIDC configuration (disabled by default)
+oidc:
+  enabled: false
+
+# Extra environment variables - why did i do it this way? who knows
+# TODO: Use secret instead of this s#!t
+extraEnv: 
+  - name: DATABASE_URL
+    valueFrom:
+      secretName: planka-postgresql-secret
+      key: DATABASE_URL
+  - name: TRUST_PROXY
+    value: "true"
+  - name: DB_CONNECTION_POOL_MIN
+    value: "2"
+  - name: DB_CONNECTION_POOL_MAX
+    value: "10"
+  - name: DB_CONNECTION_TIMEOUT
+    value: "60000"
+  - name: DB_ACQUIRE_CONNECTION_TIMEOUT
+    value: "60000"
+  - name: TZ
+    value: "Europe/Bratislava"
