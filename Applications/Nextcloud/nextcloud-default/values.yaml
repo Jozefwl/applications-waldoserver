@@ -4,6 +4,8 @@ namespace: apps
 nameOverride: ""
 fullnameOverride: ""
 
+certSecretName: cloudflare-origin-tls
+
 nextcloud:
   appName: nextcloud
   image: nextcloud:31.0.8

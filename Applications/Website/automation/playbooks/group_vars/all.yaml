@@ -25,7 +25,7 @@ nodeport_registry: 30999
 # deployment
 namespace: apps
 namespace_cdn: cdn
-version_frontend: 0.1.1.6
+version_frontend: 0.1.1.8
 version_backend: 0.1.1.7
 frontend_app_name: "website-app"
 backend_app_name: "metrics-api"

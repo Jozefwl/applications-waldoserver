@@ -46,5 +46,5 @@ Networkpolicies in templates is hardcoded that's a WIP/TODO
 # Install
 (in capital **P**lanka directory above lowercase **p**lanka directory)
 ```bash
-helm install planka-release planka/ --values planka/values.yaml --namespace apps \
+helm upgrade planka-release planka/ --values planka/values.yaml --namespace apps
 ```

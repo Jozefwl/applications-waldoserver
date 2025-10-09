@@ -41,12 +41,17 @@ ingress:
   enabled: true
   className: "nginx"
   annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+  - hosts:
+    - planka.waldhauser.sk
+    secretName: cloudflare-origin-tls
   hosts:
     - host: planka.waldhauser.sk
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+
 
 # Disable built-in PostgreSQL since im using external
 postgresql:

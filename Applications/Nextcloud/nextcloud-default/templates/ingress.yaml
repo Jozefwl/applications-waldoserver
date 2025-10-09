@@ -4,12 +4,16 @@ metadata:
   name: {{ .Values.nextcloud.ingressName }}
   namespace: {{ .Values.namespace }}
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.nextcloud.php.uploadLimit }}
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 spec:
   ingressClassName: nginx
+  tls:
+  - hosts:
+    - {{ .Values.nextcloud.host }}
+    secretName: {{ .Values.certSecretName }}
   rules:
   - host: {{ .Values.nextcloud.host }}
     http:
