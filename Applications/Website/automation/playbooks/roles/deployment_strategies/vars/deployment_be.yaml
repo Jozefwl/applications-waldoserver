@@ -13,9 +13,11 @@ spec:
       labels:
         app: metrics-api
     spec:
+      imagePullSecrets:
+        - name: harbor-credentials
       containers:
       - name: metrics-api
-        image: "{{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/metrics-api:{{ version_backend }}"
+        image: "{{ registry_url }}/{{ push_target_backend }}:{{ version_backend }}"
         imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 5000

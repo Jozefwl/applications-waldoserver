@@ -1,6 +1,6 @@
 
 # Prerequisites:
-## DB Stuff
+## DB Stuff 
 ```bash
 # Check if postgres user exists
 kubectl exec -it $(kubectl get pods -n apps -l app=postgresql -o jsonpath='{.items[0].metadata.name}') -n apps -- psql -U postgres -c "\du"
@@ -21,14 +21,18 @@ kubectl exec -it $(kubectl get pods -n apps -l app=postgresql -o jsonpath='{.ite
 ```bash
 # Create the PostgreSQL secret
 kubectl create secret generic planka-postgresql-secret \
-  --from-literal=uri="postgresql://username:password@postgresql-service.apps.svc.cluster.local:5432/planka" \
+  --from-literal=uri="postgresql://planka:pl4nk4p4ssw0rd@postgresql-release-hl.apps.svc.cluster.local:5432/planka" \
   -n apps
 ```
 ```bash
 # Create Planka admin secret
 kubectl create secret generic planka-admin-secret \
-  --from-literal=password=admin \
-  --from-literal=username=admin \
+  --from-literal=admin_name=mrjozef \
+  --from-literal=admin_password=p1assword2 \
+  --from-literal=username=mrjozef \
+    --from-literal=password=p1assword2 \
+  --from-literal=name="Planka Admin" \
+  --from-literal=admin_email=email@domain.tld \
   -n apps
 ```
 ### SecretKey
@@ -45,6 +49,11 @@ Networkpolicies in templates is hardcoded that's a WIP/TODO
 
 # Install
 (in capital **P**lanka directory above lowercase **p**lanka directory)
+```bash
+helm install planka-release planka/ --values planka/values.yaml --namespace apps
+```
+
+# Upgrade
 ```bash
 helm upgrade planka-release planka/ --values planka/values.yaml --namespace apps
 ```

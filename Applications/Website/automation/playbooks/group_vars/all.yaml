@@ -4,7 +4,7 @@ frontend: "{{ workdir }}/frontend"
 backend: "{{ workdir }}/frontend/server"
 imagedir: "{{ workdir }}/image"
 source: "{{ imagedir }}/website-blog.tar"
-
+kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
 # directories external
 destinationPath: "/etc/website/"
 destination: "{{ destinationPath }}{{ tarName }}"
@@ -17,17 +17,19 @@ backend_repo: "https://github.com/Jozefwl/backend-metrics.git"
 tarName: "website-blog.tar"
 
 # registry
-registry_namespace: registry
-registry_host: null
-registry_port: 5000
-nodeport_registry: 30999
-
+registry_url: harbor.fabrikanazemiaky.eu
+# registry_namespace: registry
+# registry_host: null
+# registry_port: 5000
+# nodeport_registry: 30999
+push_target_frontend: cloud/website-blog
+push_target_backend: cloud/metrics-api
 # deployment
 namespace: apps
 namespace_cdn: cdn
-version_frontend: 0.1.1.8
-version_backend: 0.1.1.7
-frontend_app_name: "website-app"
+version_frontend: 0.1.2
+version_backend: 0.1.2
+frontend_app_name: "website-blog"
 backend_app_name: "metrics-api"
 frontend_service_name: "website-service"
 backend_service_name: "metrics-service"

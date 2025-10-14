@@ -33,6 +33,8 @@
           env: "{{ target_frontend_env }}"
           version: "{{ version_frontend }}"
       spec:
+        imagePullSecrets:
+          - name: harbor-credentials
         replicas: "{{ replicas }}"
         selector:
           matchLabels:
@@ -45,9 +47,11 @@
               env: "{{ target_frontend_env }}"
               version: "{{ version_frontend }}"
           spec:
+            imagePullSecrets:
+              - name: harbor-credentials
             containers:
               - name: "{{ frontend_app_name }}"
-                image: "{{ app_host }}:{{ nodeport_registry }}/website-blog:{{ version_frontend }}"
+                image: "{{ registry_url }}/{{ push_target_frontend }}:{{ version_frontend }}"
                 ports:
                   - containerPort: 3000
                 readinessProbe:
@@ -132,15 +136,19 @@
             app: "{{ backend_app_name }}"
             env: "{{ target_backend_env }}"
         template:
+          imagePullSecrets:
+            - name: harbor-credentials
           metadata:
             labels:
               app: "{{ backend_app_name }}"
               env: "{{ target_backend_env }}"
               version: "{{ version_backend }}"
           spec:
+            imagePullSecrets:
+              - name: harbor-credentials
             containers:
               - name: "{{ backend_app_name }}"
-                image: "{{ app_host }}:{{ nodeport_registry }}/metrics-api:{{ version_backend }}"
+                image: "{{ registry_url }}/{{ push_target_backend }}:{{ version_backend }}"
                 ports:
                   - containerPort: 5000
                 env:

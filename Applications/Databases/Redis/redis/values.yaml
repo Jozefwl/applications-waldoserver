@@ -1,7 +1,7 @@
 namespace: apps
 redis:
   appName: redis
-  image: redis:7-alpine
+  image: redis:latest
   replicas: 1
   secretName: redis-secret
   configMapName: redis-config
@@ -18,7 +18,7 @@ redis:
     limits:
       memory: 256Mi
       cpu: 200m
-  password: redisPasswort12354
+  password: xxxxx
   maxMemory: 200mb
 nextcloud:
   appName: nextcloud

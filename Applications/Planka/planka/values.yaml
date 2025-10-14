@@ -39,13 +39,15 @@ serviceAccount:
 # Ingress configuration
 ingress:
   enabled: true
-  className: "nginx"
+  className: "traefik"
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
   tls:
-  - hosts:
-    - planka.waldhauser.sk
-    secretName: cloudflare-origin-tls
+    - hosts:
+        - planka.waldhauser.sk
+      secretName: cloudflare-origin-tls
   hosts:
     - host: planka.waldhauser.sk
       paths:

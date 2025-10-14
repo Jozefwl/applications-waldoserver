@@ -1,6 +1,6 @@
 - name: Check if registry is running
   ansible.builtin.uri:
-    url: "http://{{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/v2/"
+    url: "http://{{ registry_url }}/v2/"
     method: GET
   register: registry_check
   ignore_errors: true
@@ -9,36 +9,41 @@
   debug:
     msg: "Registry is {{ 'running' if registry_check.status == 200 else 'not accessible' }}"
 
+- name: Login to docker registry
+  ansible.builtin.shell:
+    cmd: "docker login {{ registry_url }}"
+  become: true
+
 - name: Tag frontend image for registry
   ansible.builtin.shell:
-    cmd: "docker tag website-blog:{{ version_frontend }} {{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/website-blog:{{ version_frontend }}"
+    cmd: "docker tag website-blog:{{ version_frontend }} {{ registry_url }}/website-blog:{{ version_frontend }}"
   become: true
 
 - name: Tag backend image for registry
   ansible.builtin.shell:
-    cmd: "docker tag metrics-api:{{ version_backend }} {{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/metrics-api:{{ version_backend }}"
+    cmd: "docker tag metrics-api:{{ version_backend }} {{ registry_url }}/metrics-api:{{ version_backend }}"
   become: true
 
 - name: Push frontend image to registry
   ansible.builtin.shell:
-    cmd: "docker push {{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/website-blog:{{ version_frontend }}"
+    cmd: "docker push {{ registry_url }}/website-blog:{{ version_frontend }}"
   become: true
   register: push_result
 
 - name: Push backend image to registry
   ansible.builtin.shell:
-    cmd: "docker push {{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/metrics-api:{{ version_backend }}"
+    cmd: "docker push {{ registry_url }}/metrics-api:{{ version_backend }}"
   become: true
   register: push_result
 
 - name: Display push result
   debug:
-    msg: "Image pushed successfully to {{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/website-blog:latest"
+    msg: "Image pushed successfully to {{ registry_url }}/website-blog:latest"
   when: push_result.rc == 0
 
 - name: Verify image in registry
   ansible.builtin.uri:
-    url: "http://{{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/v2/website-blog/tags/list"
+    url: "http://{{ registry_url }}/v2/website-blog/tags/list"
     method: GET
   register: registry_tags
 

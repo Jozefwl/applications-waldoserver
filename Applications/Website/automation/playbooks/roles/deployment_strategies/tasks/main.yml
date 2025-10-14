@@ -2,7 +2,7 @@
 # Main deployment orchestrator
 - name: Check if kubeconfig exists
   ansible.builtin.stat:
-    path: /etc/rancher/rke2/rke2.yaml
+    path: "{{ kubeconfig_path }}"
   register: kubeconfig_check
 
 - name: Throw error if kubeconfig doesn't exist
@@ -12,7 +12,7 @@
 
 - name: Set kubeconfig
   ansible.builtin.set_fact:
-    rancher_kubeconfig: "/etc/rancher/rke2/rke2.yaml"
+    rancher_kubeconfig: "{{ kubeconfig_path }}"
 
 - name: Create namespace for deployment
   kubernetes.core.k8s:

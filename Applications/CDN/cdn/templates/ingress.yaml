@@ -4,9 +4,10 @@ metadata:
   name: {{ .Values.ingressName }}
   namespace: {{ .Values.namespace }}
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
   - hosts:
     - {{ .Values.host }}

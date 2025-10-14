@@ -13,9 +13,11 @@ spec:
       labels:
         app: website-app
     spec:
+      imagePullSecrets:
+        - name: harbor-credentials
       containers:
         - name: website-app
-          image: "{{ hostvars[TARGET_NODE]['ansible_host'] }}:{{ nodeport_registry }}/website-blog:{{ version_frontend }}" # custom registry
+          image: "{{ registry_url }}/{{ push_target_frontend }/website-blog:{{ version_frontend }}" # custom registry
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
