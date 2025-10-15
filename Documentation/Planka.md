@@ -1,5 +1,8 @@
 
 # Prerequisites:
+!!!!! WARNING !!!!!
+YOU MUST FILL ALL VALUES IN VALUES.YAML FILE FOR PROPER ADMIN CREDS TO WORK LOGIN ETC !!!
+!!!!! WARNING !!!!!
 ## DB Stuff 
 ```bash
 # Check if postgres user exists

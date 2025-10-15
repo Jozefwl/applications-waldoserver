@@ -1,0 +1,34 @@
+commonLabels:
+  app: postgresql
+
+# new params
+auth:
+  enablePostgresUser: true
+  postgresPassword: "t3mpl4tep4ssw0rd"
+  username: "postgres"
+  password: "t3mpl4tep4ssw0rd"
+  database: "database"
+
+# legacy params (backward compatibility)
+global:
+  postgresql:
+    auth:
+      postgresPassword: "t3mpl4tep4ssw0rd"
+      username: "postgres"
+      password: "t3mpl4tep4ssw0rd"
+      database: "database"
+
+persistence:
+  size: 15Gi
+  storageClass: local-path
+
+replication:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256Mi
