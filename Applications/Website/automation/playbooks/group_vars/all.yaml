@@ -27,13 +27,13 @@ push_target_backend: cloud/metrics-api
 # deployment
 namespace: apps
 namespace_cdn: cdn
-version_frontend: 0.1.2
+version_frontend: 0.1.3
 version_backend: 0.1.2
 frontend_app_name: "website-blog"
 backend_app_name: "metrics-api"
 frontend_service_name: "website-service"
 backend_service_name: "metrics-service"
-prometheus_url: "http://monitoring-kube-prometheus-prometheus.default.svc.cluster.local:9090"
+prometheus_url: "http://monitoring-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
 
 # deployment strategies
 deployment_strategy: "blue-green" 
