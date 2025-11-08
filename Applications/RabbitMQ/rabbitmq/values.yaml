@@ -1,0 +1,41 @@
+# Default values for rabbitmq-community
+replicaCount: 1
+
+image:
+  registry: docker.io
+  repository: library/rabbitmq
+  tag: "4-management"
+  pullPolicy: IfNotPresent
+
+auth:
+  username: myuser
+  password: mypassword123
+
+tls:
+  enabled: true
+  secretName: rabbitmq-certs
+  failIfNoPeerCert: "false"
+  sslOptionsVerify: verify_none
+
+service:
+  type: ClusterIP
+  amqpPort: 5672
+  amqpSSLPort: 5671
+  managementPort: 15672
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClassName: ""  # uses default
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

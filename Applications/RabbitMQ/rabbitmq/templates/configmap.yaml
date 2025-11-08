@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rabbitmq-community.fullname" . }}-config
+  labels:
+    {{- include "rabbitmq-community.labels" . | nindent 4 }}
+data:
+  rabbitmq.conf: |
+    # RabbitMQ Configuration File
+    # Default user/password managed via environment variables
+
+    {{- if .Values.tls.enabled }}
+    # SSL/TLS Configuration
+    listeners.ssl.default = {{ .Values.service.amqpSSLPort }}
+    ssl_options.certfile = /etc/rabbitmq/certs/tls.crt
+    ssl_options.keyfile = /etc/rabbitmq/certs/tls.key
+    ssl_options.verify = {{ .Values.tls.sslOptionsVerify }}
+    ssl_options.fail_if_no_peer_cert = {{ .Values.tls.failIfNoPeerCert | lower }}
+    {{- end }}
+
+    # Management Plugin
+    # management.load_definitions = /etc/rabbitmq/definitions.json
+
+    # Clustering
+    cluster_formation.peer_discovery_backend = rabbit_peer_discovery_classic_config

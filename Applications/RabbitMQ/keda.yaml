@@ -1,0 +1,63 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: worker-scaledjob
+  namespace: computation
+spec:
+  # --- 1. Scaling behavior ---
+  minReplicaCount: 0              # No jobs running when queue is empty
+  maxReplicaCount: 10             # Maximum number of concurrent jobs (pods)
+  pollingInterval: 15             # Check RabbitMQ every 15 seconds
+  successfulJobsHistoryLimit: 2   # Keep only 2 completed job records
+  failedJobsHistoryLimit: 2       # Keep only 2 failed job records
+
+  # --- 2. Job execution configuration ---
+  jobTargetRef:
+    parallelism: 1                # Each job runs one pod at a time
+    completions: 1                # One pod completes one calculation
+    backoffLimit: 0               # No retries if it fails
+    ttlSecondsAfterFinished: 60   # Cleanup job after 60 seconds
+    template:
+      spec:
+        restartPolicy: Never
+        containers:
+          - name: computation-worker
+            image: busybox
+            command: ["sleep", "180"]
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: RABBITMQ_HOST
+                value: "amqps://rabbitmq.messagebrokers.svc.cluster.local"
+              - name: RABBITMQ_PORT
+                value: "5671"
+              - name: RABBITMQ_USER
+                value: "myuser"
+              - name: RABBITMQ_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rabbitmq-credentials
+                    key: password
+              - name: RABBITMQ_QUEUE
+                value: "computation-tasks"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 128Mi
+
+  # --- 3. KEDA trigger configuration ---
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp              # Use 'amqp' (NOT 'amqps' - KEDA doesn't support it directly)
+        queueName: computation-tasks
+        hostFromEnv: RABBITMQ_HOST
+        portFromEnv: RABBITMQ_PORT
+        usernameFromEnv: RABBITMQ_USER
+        passwordFromEnv: RABBITMQ_PASSWORD
+        mode: QueueLength
+        value: "1"
+        vhostName: "/"
+        unsafeSsl: "true"           # For SSL/TLS with certificate mismatch (testing only)

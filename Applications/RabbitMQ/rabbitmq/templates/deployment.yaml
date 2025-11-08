@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rabbitmq-community.fullname" . }}
+  labels:
+    {{- include "rabbitmq-community.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rabbitmq-community.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rabbitmq-community.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: rabbitmq
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.amqpPort }}
+          name: amqp
+        - containerPort: {{ .Values.service.amqpSSLPort }}
+          name: amqp-ssl
+        - containerPort: {{ .Values.service.managementPort }}
+          name: management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: {{ .Values.auth.username | quote }}
+        - name: RABBITMQ_DEFAULT_PASS
+          value: {{ .Values.auth.password | quote }}
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.service.amqpPort }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: {{ .Values.service.amqpPort }}
+          initialDelaySeconds: 20
+          periodSeconds: 5
+        volumeMounts:
+        - name: rabbitmq-config
+          mountPath: /etc/rabbitmq/rabbitmq.conf
+          subPath: rabbitmq.conf
+          readOnly: true
+        {{- if .Values.tls.enabled }}
+        - name: rabbitmq-certs
+          mountPath: /etc/rabbitmq/certs
+          readOnly: true
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+      - name: rabbitmq-config
+        configMap:
+          name: {{ include "rabbitmq-community.fullname" . }}-config
+      {{- if .Values.tls.enabled }}
+      - name: rabbitmq-certs
+        secret:
+          secretName: {{ .Values.tls.secretName }}
+      {{- end }}
