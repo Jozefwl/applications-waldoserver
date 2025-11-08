@@ -1,0 +1,318 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: erpnext
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: erp-site-html
+  namespace: erpnext
+data:
+   index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1" />
+      <title>ERP Waldhauser</title>
+      <meta name="description" content="The only ERP you'll ever need. Enterprise Resource Planning done with taste and precision." />
+      <style>
+        :root{
+          --bg:#0f1724;
+          --card:#0b1220;
+          --muted:#9aa7b2;
+          --accent:#0ea5a1;
+          --glass: rgba(255,255,255,0.035);
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+        html,body{height:100%; margin:0;}
+        body{
+          background: linear-gradient(180deg,#071021 0%, #081426 50%, #071827 100%);
+          color:#e6eef3;
+          -webkit-font-smoothing:antialiased;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:40px;
+        }
+        .wrap{
+          width:100%;
+          max-width:1100px;
+          border-radius:18px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          box-shadow: 0 8px 40px rgba(2,6,23,0.7);
+          overflow:hidden;
+          display:grid;
+          grid-template-columns: 1fr 420px;
+          gap:0;
+        }
+        .hero{
+          padding:48px;
+          display:flex;
+          flex-direction:column;
+          gap:20px;
+        }
+        .kicker{
+          color:var(--accent);
+          font-weight:700;
+          letter-spacing:1px;
+          background: linear-gradient(90deg, rgba(14,165,161,0.14), rgba(14,165,161,0.05));
+          padding:6px 10px;
+          border-radius:999px;
+          width:max-content;
+          font-size:13px;
+        }
+        h1{
+          margin:0;
+          font-size:44px;
+          line-height:1.02;
+          letter-spacing:-0.02em;
+        }
+        p.lead{
+          margin:0;
+          color:var(--muted);
+          font-size:18px;
+          max-width:65ch;
+        }
+        .cta{
+          margin-top:18px;
+          display:flex;
+          gap:12px;
+          align-items:center;
+          flex-wrap:wrap;
+        }
+        .btn{
+          background:var(--accent);
+          color:#042023;
+          padding:12px 18px;
+          border-radius:10px;
+          text-decoration:none;
+          font-weight:700;
+          box-shadow: 0 6px 18px rgba(14,165,161,0.12);
+          transition:all .2s ease;
+        }
+        .btn:hover{transform:translateY(-1px); box-shadow: 0 8px 20px rgba(14,165,161,0.18);}
+        .btn.secondary{
+          background:transparent;
+          color:var(--muted);
+          border:1px solid rgba(255,255,255,0.04);
+          font-weight:600;
+        }
+        .tenant-links{
+          display:flex;
+          gap:10px;
+          margin-top:10px;
+          flex-wrap:wrap;
+        }
+        .tenant-links .btn{
+          background:var(--glass);
+          color:#e6eef3;
+          border:1px solid rgba(255,255,255,0.05);
+          font-weight:600;
+        }
+        .features{
+          display:grid;
+          grid-template-columns:repeat(2, minmax(0,1fr));
+          gap:12px;
+          margin-top:24px;
+        }
+        .card{
+          background:var(--glass);
+          padding:14px;
+          border-radius:10px;
+          border:1px solid rgba(255,255,255,0.02);
+        }
+        .card h4{margin:0 0 6px 0; font-size:14px;}
+        .card p{margin:0; color:var(--muted); font-size:13px;}
+        .aside{
+          padding:28px;
+          border-left:1px solid rgba(255,255,255,0.02);
+          display:flex;
+          flex-direction:column;
+          gap:18px;
+          justify-content:center;
+          align-items:center;
+        }
+        .logo{
+          width:120px;
+          height:120px;
+          border-radius:12px;
+          overflow:hidden;
+          box-shadow: 0 8px 20px rgba(2,6,23,0.7);
+          border:1px solid rgba(255,255,255,0.03);
+        }
+        .logo img{width:100%; height:100%; object-fit:cover; display:block;}
+        footer.small{font-size:12px; color:var(--muted); margin-top:8px;}
+        .disclaimer{font-size:12px; color:var(--muted); max-width:320px; text-align:center;}
+        @media (max-width:920px){
+          .wrap{grid-template-columns:1fr; padding:0;}
+          .aside{border-left:none;border-top:1px solid rgba(255,255,255,0.02);}
+        }
+      </style>
+    </head>
+    <body>
+      <div class="wrap" role="main" aria-label="ERP Waldhauser - Enterprise resource planning">
+        <div class="hero">
+          <div class="kicker">ERP WALDHAUSER</div>
+          <h1>The only ERP you'll ever need.</h1>
+          <p class="lead">
+            Built for modern enterprises that expect clarity, control and an "almost" hands-free experience.
+            Enterprise Resource Planning that gets your business organised and helps you dominate the market.
+          </p>
+
+          <div class="cta">
+            <a class="btn" href="https://waldhauser.sk/contact" onclick="alert('You will now be redirected to the contact page.')">Request a demo</a>
+            <a class="btn secondary" href="https://github.com/Jozefwl/applications-waldoserver/tree/main/Documentation" onclick="alert('You will now be redirected to the GitHub documentation.')">Read the brochure</a>
+          </div>
+
+          <!-- new tenant links -->
+          <div class="tenant-links">
+            <a class="btn" href="https://tenant1.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 1</a>
+            <a class="btn" href="https://tenant2.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 2</a>
+            <a class="btn" href="https://tenant3.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 3</a>
+          </div>
+
+          <div class="features" aria-label="Features">
+            <div class="card">
+              <h4>One Platform</h4>
+              <p>Accounting, inventory, HR and reporting fully integrated so you don't have to perform ERP gymnastics.</p>
+            </div>
+            <div class="card">
+              <h4>Privacy & Compliance</h4>
+              <p>Enterprise-grade controls and reports for auditors who enjoy long meetings in dark rooms.</p>
+            </div>
+            <div class="card">
+              <h4>Scalable</h4>
+              <p>Grows with you from three users to thousands. No awkward roleplay required, unless requested.</p>
+            </div>
+            <div class="card">
+              <h4>Support</h4>
+              <p>Very professional support. We deal with serious issues whether you need assistance with ERP or assistance with ERP.</p>
+            </div>
+          </div>
+
+          <div style="margin-top:22px; color:var(--muted); font-size:10px;">
+            <strong>The best kind of ERP.</strong><br/>
+            We plan resources. We plan enterprises. If your imagination wandered toward <em>other</em> definitions of ERP, we wink politely and return to the backlog.
+          </div>
+        </div>
+
+        <aside class="aside" aria-labelledby="brand">
+          <div id="brand" class="logo" title="ERP Waldhauser">
+            <img src="https://cdn.waldhauser.sk/erp/erpman.jpg" alt="fat man thumbs up">
+          </div>
+          <div class="disclaimer">
+            Military-grade enterprise ERP, reliable with multiple backup solutions.<br> For ERP in a SFW environment, please consult your HR department.
+          </div>
+          <footer class="small">&copy; {{YEAR}} Jozef Waldhauser - All rights reserved.</footer>
+        </aside>
+      </div>
+
+      <script>
+        document.querySelectorAll('footer.small').forEach(f => {
+          f.innerHTML = f.innerHTML.replace('{{YEAR}}', new Date().getFullYear());
+        });
+      </script>
+    </body>
+    </html>
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-site-deployment
+  namespace: erpnext
+  labels:
+    app: erp-site
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: erp-site
+  template:
+    metadata:
+      labels:
+        app: erp-site
+    spec:
+      containers:
+        - name: static-http
+          image: httpd:2.4-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            # Mount the ConfigMap index.html over the default doc root index.html
+            - name: site-content
+              mountPath: /usr/local/apache2/htdocs/index.html
+              subPath: index.html
+      volumes:
+        - name: site-content
+          configMap:
+            name: erp-site-html
+            items:
+              - key: index.html
+                path: index.html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-site-svc
+  namespace: erpnext
+  labels:
+    app: erp-site
+spec:
+  type: ClusterIP
+  selector:
+    app: erp-site
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+# Certificate using letsencrypt
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: erp-waldhauser-cert
+  namespace: erpnext
+spec:
+  secretName: erp-waldhauser-tls 
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: erp.waldhauser.sk
+  dnsNames:
+    - erp.waldhauser.sk
+---
+# Traefik-friendly Ingress (networking.k8s.io/v1)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: erp-site-ingress
+  namespace: erpnext
+  annotations:
+    # Use your Traefik ingress class or ingressClassName below
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Optional: enable HSTS via Traefik headers middleware (if you want)
+    # traefik.ingress.kubernetes.io/router.middlewares: "erp-site/hsts@kubernetescrd"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - erp.waldhauser.sk
+      secretName: erp-waldhauser-tls   # <--- ensure this secret exists in the erp-site namespace (see notes)
+  rules:
+    - host: erp.waldhauser.sk
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: erp-site-svc
+                port:
+                  number: 80

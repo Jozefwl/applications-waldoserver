@@ -296,7 +296,6 @@ ingress:
   tls:
   - secretName: erpnext-tls
     hosts:
-    - erp.waldhauser.sk
     - tenant1.erp.waldhauser.sk
     - tenant2.erp.waldhauser.sk
     - tenant3.erp.waldhauser.sk
