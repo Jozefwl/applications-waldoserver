@@ -1,3 +1,5 @@
+# WIP
+
  helm upgrade --install -n nfs in-cluster nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner --set 'storageClass.mountOptions={vers=4.1}' --set persistence.enabled=true --set persistence.size=8Gi 
 
 Release "in-cluster" does not exist. Installing it now.
