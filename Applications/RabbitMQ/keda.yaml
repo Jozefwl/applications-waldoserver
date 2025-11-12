@@ -1,3 +1,45 @@
+---
+# Create the credentials secret with the full connection string
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: rabbitmq-secret
+#   namespace: computation
+# type: Opaque
+# data:
+#   # base64 encoded: amqps://myuser:mypassword123@rabbitmq.messagebrokers.svc.cluster.local:5671/
+#   host: YW1xcHM6Ly9teXVzZXI6bXlwYXNzd29yZDEyM0ByYWJiaXRtcS5tZXNzYWdlYnJva2Vycy5zdmMuY2x1c3Rlci5sb2NhbDo1NjcxLw==
+#   tls: ZW5hYmxl  # base64 encoded "enable"
+#   # my CA is tls.crt base64encoded
+#   ca: [REDACTED -> is base64 of cert]
+
+# or create manually
+# kubectl create secret generic rabbitmq-secret \
+#   -n computation \
+#   --from-literal=host=$(echo "amqps://myuser:mypassword123@rabbitmq.messagebrokers.svc.cluster.local:5671/" | base64) \
+#   --from-literal=tls=$(echo "enable" | base64) \
+#   --from-literal=ca=$(cat ca.b64)
+---
+# TriggerAuthentication with proper host + tls
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+  namespace: computation
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-secret
+      key: host
+    - parameter: tls
+      name: rabbitmq-secret
+      key: tls
+    - parameter: ca
+      name: rabbitmq-secret
+      key: ca
+
+---
+# ScaledJob using the TriggerAuthentication
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
@@ -25,20 +67,11 @@ spec:
             image: busybox
             command: ["sleep", "180"]
             imagePullPolicy: IfNotPresent
-            env:
+            env: # env vars of the app to-be-autoscaled have to be in same namespace IF from file
               - name: RABBITMQ_HOST
-                value: "amqps://rabbitmq.messagebrokers.svc.cluster.local"
-              - name: RABBITMQ_PORT
-                value: "5671"
-              - name: RABBITMQ_USER
-                value: "myuser"
-              - name: RABBITMQ_PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: rabbitmq-credentials
-                    key: password
-              - name: RABBITMQ_QUEUE
-                value: "computation-tasks"
+                value: "rabbitmq.messagebrokers.svc.cluster.local"
+              - name: TEST_VARIABLE
+                value: "supermegatestvariable"
             resources:
               requests:
                 cpu: 100m
@@ -47,17 +80,13 @@ spec:
                 cpu: 200m
                 memory: 128Mi
 
-  # --- 3. KEDA trigger configuration ---
   triggers:
     - type: rabbitmq
       metadata:
-        protocol: amqp              # Use 'amqp' (NOT 'amqps' - KEDA doesn't support it directly)
+        protocol: amqp # amqps fails for some reason
         queueName: computation-tasks
-        hostFromEnv: RABBITMQ_HOST
-        portFromEnv: RABBITMQ_PORT
-        usernameFromEnv: RABBITMQ_USER
-        passwordFromEnv: RABBITMQ_PASSWORD
         mode: QueueLength
         value: "1"
         vhostName: "/"
-        unsafeSsl: "true"           # For SSL/TLS with certificate mismatch (testing only)
+      authenticationRef:
+        name: rabbitmq-trigger-auth
