@@ -1,124 +1,170 @@
+{{- $deploymentType := .Values.deploymentStrategy.type | default "rolling" }}
+{{- $isBlueGreen := eq $deploymentType "blue-green" }}
+{{- $isCanary := eq $deploymentType "canary" }}
+{{- $isShadow := eq $deploymentType "shadow" }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "erpnext.fullname" . }}-nginx
+  name: >-
+    {{- if $isBlueGreen -}}
+    {{ include "erpnext.fullname" . }}-nginx-blue
+    {{- else if $isCanary -}}
+    {{ include "erpnext.fullname" . }}-nginx
+    {{- else if $isShadow -}}
+    {{ include "erpnext.fullname" . }}-nginx
+    {{- else -}}
+    {{ include "erpnext.fullname" . }}-nginx
+    {{- end }}
   labels:
     {{- include "erpnext.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+    {{- if $isBlueGreen }}
+    deployment-color: blue
+    {{- else if $isCanary }}
+    deployment-type: stable
+    {{- else if $isShadow }}
+    deployment-type: stable
+    {{- end }}
+
 spec:
   {{- if not .Values.nginx.autoscaling.enabled }}
   replicas: {{ .Values.nginx.replicaCount }}
   {{- end }}
+  
+  {{- if or (eq $deploymentType "rolling") (eq $deploymentType "recreate") (eq $deploymentType "ramped") }}
+  strategy:
+    type: {{ if eq $deploymentType "recreate" }}Recreate{{ else }}RollingUpdate{{ end }}
+    {{- if ne $deploymentType "recreate" }}
+    rollingUpdate:
+      {{- if eq $deploymentType "ramped" }}
+      # Ramped: maxUnavailable=1, maxSurge=0 (kill old before starting new)
+      maxUnavailable: 1
+      maxSurge: 0
+      {{- else }}
+      # Rolling: default gradual replacement
+      maxUnavailable: {{ .Values.deploymentStrategy.parameters.maxUnavailable | default 0 }}
+      maxSurge: {{ .Values.deploymentStrategy.parameters.maxSurge | default 1 }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+  # For Blue-Green/Canary/Shadow: handled by Ansible orchestration
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
+
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "erpnext.name" . }}-nginx
-      app.kubernetes.io/instance: {{ .Release.Name }}-nginx
+      {{- include "erpnext.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nginx
+      {{- if $isBlueGreen }}
+      deployment-color: blue
+      {{- else if $isCanary }}
+      deployment-type: stable
+      {{- else if $isShadow }}
+      deployment-type: stable
+      {{- end }}
+
   template:
     metadata:
+      {{- with .Values.nginx.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
-        app.kubernetes.io/name: {{ include "erpnext.name" . }}-nginx
-        app.kubernetes.io/instance: {{ .Release.Name }}-nginx
+        {{- include "erpnext.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nginx
+        {{- if $isBlueGreen }}
+        deployment-color: blue
+        {{- else if $isCanary }}
+        deployment-type: stable
+        {{- else if $isShadow }}
+        deployment-type: stable
+        {{- end }}
+
     spec:
-    {{- with .Values.imagePullSecrets }}
+      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
+      {{- end }}
       serviceAccountName: {{ include "erpnext.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-    {{- if .Values.nginx.initContainers }}
+
       initContainers:
-        {{- toYaml .Values.nginx.initContainers | nindent 8 }}
-    {{- end }}
-      containers:
-        - name: nginx
-          args:
-          {{- if .Values.nginx.config }}
-          - nginx
-          - -g
-          - 'daemon off;'
-          {{- else }}
-          - nginx-entrypoint.sh
-          {{- end }}
-          env:
-            - name: "BACKEND"
-              value: {{ print (include "erpnext.fullname" .) "-gunicorn:" .Values.worker.gunicorn.service.port }}
-            - name: "SOCKETIO"
-              value: {{ print (include "erpnext.fullname" .) "-socketio:" .Values.socketio.service.port }}
-            - name: "UPSTREAM_REAL_IP_ADDRESS"
-              value: {{ .Values.nginx.environment.upstreamRealIPAddress | quote }}
-            - name: "UPSTREAM_REAL_IP_RECURSIVE"
-              value: {{ .Values.nginx.environment.upstreamRealIPRecursive | quote }}
-            - name: "UPSTREAM_REAL_IP_HEADER"
-              value: {{ .Values.nginx.environment.upstreamRealIPHeader }}
-            - name: "FRAPPE_SITE_NAME_HEADER"
-              value: {{ .Values.nginx.environment.frappeSiteNameHeader }}
-            - name: "PROXY_READ_TIMEOUT"
-              value: {{ .Values.nginx.environment.proxyReadTimeout | quote }}
-            - name: "CLIENT_MAX_BODY_SIZE"
-              value: {{ .Values.nginx.environment.clientMaxBodySize }}
-          {{- if .Values.nginx.envVars }}
-            {{- toYaml .Values.nginx.envVars | nindent 12 }}
-          {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.nginx.service.port }}
-              protocol: TCP
-          livenessProbe:
-            {{- toYaml .Values.nginx.livenessProbe | nindent 12 }}
-          readinessProbe:
-            {{- toYaml .Values.nginx.readinessProbe | nindent 12 }}
-          resources:
-            {{- toYaml .Values.nginx.resources | nindent 12 }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          volumeMounts:
-          - name: sites-dir
-            mountPath: /home/frappe/frappe-bench/sites
-          {{- if .Values.nginx.config }}
-          - name: nginx-config
-            mountPath: /etc/nginx/conf.d
-          {{- end }}
-      volumes:
-        - name: sites-dir
-          {{- if .Values.persistence.worker.enabled }}
-          persistentVolumeClaim:
-            {{- if .Values.persistence.worker.existingClaim }}
-            claimName: {{ .Values.persistence.worker.existingClaim }}
-            {{- else }}
-            claimName: {{ template "erpnext.fullname" . }}
-            {{- end }}
-            readOnly: false
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-        {{- if .Values.nginx.config }}
-        - name: nginx-config
-          configMap:
-            name: {{ include "erpnext.fullname" . }}-nginx-config
+        {{- with .Values.nginx.initContainers }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
+
+      containers:
+      - name: nginx
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        
+        env:
+        - name: FRAPPE_SITE_NAME_HEADER
+          value: "{{ .Values.nginx.environment.frappeSiteNameHeader | default "$host" }}"
+        - name: UPSTREAM_REAL_IP_ADDRESS
+          value: "{{ .Values.nginx.environment.upstreamRealIPAddress | default "127.0.0.1" }}"
+        - name: UPSTREAM_REAL_IP_RECURSIVE
+          value: "{{ .Values.nginx.environment.upstreamRealIPRecursive | default "off" }}"
+        - name: UPSTREAM_REAL_IP_HEADER
+          value: "{{ .Values.nginx.environment.upstreamRealIPHeader | default "X-Forwarded-For" }}"
+        - name: PROXY_READ_TIMEOUT
+          value: "{{ .Values.nginx.environment.proxyReadTimeout | default "120" }}"
+        - name: CLIENT_MAX_BODY_SIZE
+          value: "{{ .Values.nginx.environment.clientMaxBodySize | default "50m" }}"
+
+        {{- with .Values.nginx.envVars }}
+        {{- toYaml . | nindent 12 }}
+        {{- end }}
+
+        livenessProbe:
+          {{- toYaml .Values.nginx.livenessProbe | nindent 12 }}
+        
+        readinessProbe:
+          {{- toYaml .Values.nginx.readinessProbe | nindent 12 }}
+
+        resources:
+          {{- toYaml .Values.nginx.resources | nindent 12 }}
+
+      {{- with .Values.nginx.sidecars }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
       {{- with .Values.nginx.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-    {{- with .Values.nginx.affinity }}
+      {{- with .Values.nginx.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
-    {{- with .Values.nginx.tolerations }}
+      {{- end }}
+      {{- with .Values.nginx.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
+      {{- end }}
+
+      {{- if .Values.nginx.defaultTopologySpread }}
       topologySpreadConstraints:
-        {{- if .Values.nginx.topologySpreadConstraints }}
-        {{- toYaml .Values.nginx.topologySpreadConstraints | nindent 8 }}
-        {{- else }}
-        - maxSkew: {{ .Values.nginx.defaultTopologySpread.maxSkew | default 1 }}
-          topologyKey: {{ .Values.nginx.defaultTopologySpread.topologyKey | default "kubernetes.io/hostname" }}
-          whenUnsatisfiable: {{ .Values.nginx.defaultTopologySpread.whenUnsatisfiable | default "ScheduleAnyway" }}
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: {{ include "erpnext.name" . }}-nginx
-              app.kubernetes.io/instance: {{ .Release.Name }}-nginx
-        {{- end }}
+      {{- with .Values.nginx.topologySpreadConstraints }}
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
+      - maxSkew: {{ .Values.nginx.defaultTopologySpread.maxSkew }}
+        topologyKey: {{ .Values.nginx.defaultTopologySpread.topologyKey }}
+        whenUnsatisfiable: {{ .Values.nginx.defaultTopologySpread.whenUnsatisfiable }}
+        labelSelector:
+          matchLabels:
+            {{- include "erpnext.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: nginx
+      {{- end }}
+      {{- end }}

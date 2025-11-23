@@ -1,0 +1,70 @@
+---
+- name: Post-Deployment Validation and Monitoring
+  block:
+    - name: Get deployment status
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ helm_release_name }}-nginx"
+      register: deployment_status
+
+    - name: Verify all replicas are ready
+      assert:
+        that:
+          - deployment_status.resources[0].status.readyReplicas == deployment_status.resources[0].spec.replicas
+        fail_msg: "Deployment not fully ready. Ready: {{ deployment_status.resources[0].status.readyReplicas }}/{{ deployment_status.resources[0].spec.replicas }}"
+
+    - name: Get service endpoints
+      kubernetes.core.k8s_info:
+        kind: Service
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ helm_release_name }}-nginx"
+      register: service_info
+
+    - name: Verify service has endpoints
+      assert:
+        that:
+          - service_info.resources[0].spec.selector is defined
+        fail_msg: "Service has no valid selectors"
+
+    - name: Health check application endpoint
+      uri:
+        url: "http://{{ service_info.resources[0].spec.clusterIP }}:8080/api/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 10
+      delay: 5
+      ignore_errors: true
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          [Y] Deployment Successful
+          
+          Strategy: {{ deployment_strategy }}
+          Namespace: {{ kubernetes_namespace }}
+          Release: {{ helm_release_name }}
+          Image: {{ new_erpnext_image_tag }}
+          
+          Pod Status:
+            Ready: {{ deployment_status.resources[0].status.readyReplicas }}/{{ deployment_status.resources[0].spec.replicas }}
+            Updated: {{ deployment_status.resources[0].status.updatedReplicas }}/{{ deployment_status.resources[0].spec.replicas }}
+          
+          Health Check: {{ 'PASSED' if health_check is succeeded else 'FAILED' }}
+          
+          Next Steps:
+            - Monitor application logs
+            - Verify functionality
+            - Check metrics in Prometheus/Grafana
+
+  rescue:
+    - name: Display deployment error
+      debug:
+        msg: |
+          [X] Deployment Validation Failed
+          
+          Please check:
+          - Pod events: kubectl describe pods -n {{ kubernetes_namespace }}
+          - Pod logs: kubectl logs -n {{ kubernetes_namespace }} -l app=erpnext
+          - Helm release: helm status {{ helm_release_name }} -n {{ kubernetes_namespace }}

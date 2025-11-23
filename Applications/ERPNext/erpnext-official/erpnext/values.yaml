@@ -2,6 +2,53 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Deployment Strategy Configuration
+# Options: rolling, recreate, ramped, blue-green, canary, shadow
+deploymentStrategy:
+  type: rolling
+  
+  parameters:
+    # For rolling/ramped strategies
+    maxUnavailable: 0      # Number/percentage of pods to stop
+    maxSurge: 1            # Number/percentage of new pods to add
+    
+    # For blue-green deployment
+    blueGreen:
+      manualApproval: false
+      cleanupOldVersion: true
+      healthCheckTimeout: 300  # seconds (5 minutes)
+      healthCheckRetries: 30
+      healthCheckDelay: 10
+    
+    # For canary deployment
+    canary:
+      stages:
+        - weight: 10       # 10% traffic to canary
+          duration: 300    # 5 minutes
+        - weight: 50       # 50% traffic to canary
+          duration: 300    # 5 minutes
+        - weight: 100      # 100% traffic to canary
+          duration: 0      # Immediate
+      
+      # Automatic rollback thresholds
+      errorRateThreshold: 5        # percentage (%)
+      latencyP95Threshold: 1000    # milliseconds (ms)
+      cpuThreshold: 80             # percentage (%)
+      memoryThreshold: 85          # percentage (%)
+      
+      # Metrics collection
+      metricsProvider: "prometheus"  # or "datadog", "new-relic"
+      metricsQuery: "rate(http_requests_total[5m])"
+    
+    # For shadow deployment
+    shadow:
+      mirrorPercent: 100            # 100% of traffic mirrored
+      monitoringDuration: 3600      # 1 hour
+      
+      # Analysis thresholds
+      errorRateThreshold: 5         # percentage
+      latencyDifference: 10         # percentage (acceptable difference vs production)
+
 # Configure external database host
 # dbHost: ""
 # dbPort: 3306

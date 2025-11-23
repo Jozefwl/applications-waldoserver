@@ -1,0 +1,79 @@
+---
+- name: Rolling Update Strategy
+  block:
+    - name: Display image info
+      debug:
+        msg: |
+          image tag: {{ new_erpnext_image_tag }}
+
+    - name: Update Helm values for rolling strategy
+      set_fact:
+        helm_values:
+          deploymentStrategy:
+            type: rolling
+            parameters:
+              maxUnavailable: 0
+              maxSurge: 1
+
+    - name: Deploy/upgrade ERPNext with rolling strategy
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}"
+        kubeconfig: "{{ kubeconfig }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        values: "{{ helm_values }}"
+        set_values:
+          - value: "image.tag={{ new_erpnext_image_tag }}"
+            value_type: string
+        state: present
+        wait: true
+        wait_timeout: 600
+        atomic: true  # Automatically rolls back on failure
+      register: helm_release
+
+    - name: Wait for deployment to stabilize
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Deployment
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ helm_release_name }}-nginx"
+      register: deployment_status
+      until: >
+        deployment_status.resources | length > 0 and
+        deployment_status.resources[0].status.readyReplicas is defined and
+        deployment_status.resources[0].status.readyReplicas == deployment_status.resources[0].spec.replicas and
+        deployment_status.resources[0].status.updatedReplicas is defined and
+        deployment_status.resources[0].status.updatedReplicas == deployment_status.resources[0].spec.replicas
+      retries: 60
+      delay: 5
+      when: helm_release is succeeded
+
+    - name: Display release status
+      debug:
+        msg: "Helm release status: {{ helm_release.status }}"
+
+  rescue:
+    - name: Display rollback message
+      debug:
+        msg: "Deployment failed. Helm atomic rollback should have been triggered automatically."
+
+    - name: Manual rollback if atomic failed
+      kubernetes.core.helm:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        state: present
+      register: rollback_result
+      ignore_errors: true
+      when: helm_release is failed
+
+    - name: Get rollback status
+      command: "helm rollback {{ helm_release_name }} 0 -n {{ kubernetes_namespace }}"
+      register: helm_rollback
+      ignore_errors: true
+      when: rollback_result is failed
+
+    - name: Fail the playbook after rollback attempt
+      fail:
+        msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."

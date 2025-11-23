@@ -1,0 +1,67 @@
+---
+- name: Ramped Strategy (Controlled Rolling)
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          Deploying with RAMPED strategy
+          - One old pod terminates BEFORE new pod starts
+          - Zero downtime maintained
+          - Slower than rolling (maxSurge=0)
+          - Good for resource-constrained environments
+          - Image tag: {{ new_erpnext_image_tag }}
+
+    - name: Update Helm values for ramped strategy
+      set_fact:
+        helm_values:
+          deploymentStrategy:
+            type: ramped
+            parameters:
+              maxUnavailable: 1   # Kill one pod
+              maxSurge: 0         # Don't start new until old is terminated
+
+    - name: Deploy/upgrade ERPNext with ramped strategy
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        values: "{{ helm_values }}"
+        set_values:
+          - value: "image.tag={{ new_erpnext_image_tag }}"
+            value_type: string
+        state: present
+        wait: true
+        wait_condition:
+          type: "Progressing"
+          status: "True"
+        wait_timeout: 600
+        atomic: true
+      register: helm_release
+
+    - name: Monitor ramped rollout
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ helm_release_name }}-nginx"
+      register: deployment_info
+      until: |
+        deployment_info.resources[0].status.readyReplicas == deployment_info.resources[0].spec.replicas and
+        deployment_info.resources[0].status.updatedReplicas == deployment_info.resources[0].spec.replicas
+      retries: 60
+      delay: 5
+
+    - name: Display final deployment state
+      debug:
+        msg: |
+          Ramped rollout completed
+          Ready replicas: {{ deployment_info.resources[0].status.readyReplicas }}/{{ deployment_info.resources[0].spec.replicas }}
+          Updated replicas: {{ deployment_info.resources[0].status.updatedReplicas }}/{{ deployment_info.resources[0].spec.replicas }}
+
+  rescue:
+    - name: Rollback on failure
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        state: present
+        atomic_rollback: true
+      ignore_errors: true

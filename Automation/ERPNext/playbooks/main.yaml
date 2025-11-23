@@ -1,0 +1,61 @@
+---
+- name: ERPNext Deployment Strategy Dispatcher
+  hosts: localhost
+  gather_facts: false
+
+  tasks:   
+    - name: Validate deployment strategy
+      ansible.builtin.assert:
+        that: 
+          - deployment_strategy in ['bluegreen','canary','ramped','recreate','rolling','shadow']
+        fail_msg: "ERROR ! Deployment strategy wrong: {{ deployment_strategy }}"
+        success_msg: "SUCCESS - Detected deployment strategy: {{ deployment_strategy }}"
+
+
+- name: Execute a deployment strategy
+  hosts: "{{ TARGET_NODE }}"
+  gather_facts: false
+
+  tasks:
+    # PREREQS --------------------------------------------
+    - name: Check if kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_check
+
+    - name: Stop execution when kubeconfig doesn't exist
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}"
+      when: not kubeconfig_check.stat.exists
+
+    - name: Set kubeconfig
+      ansible.builtin.set_fact:
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    # DEPLOYMENT STRATEGIES ------------------------------
+    - name: Execute rolling update strategy
+      include_tasks: roles/deployment_strategies/tasks/rolling.yaml
+      when: deployment_strategy == "rolling"
+
+    - name: Execute recreate strategy
+      include_tasks: roles/deployment_strategies/tasks/recreate.yaml
+      when: deployment_strategy == "recreate"
+
+    - name: Execute ramped strategy
+      include_tasks: roles/deployment_strategies/tasks/ramped.yaml
+      when: deployment_strategy == "ramped"
+
+    - name: Execute blue-green strategy
+      include_tasks: roles/deployment_strategies/tasks/blue-green.yaml
+      when: deployment_strategy == "blue-green"
+
+    - name: Execute canary strategy
+      include_tasks: roles/deployment_strategies/tasks/canary.yaml
+      when: deployment_strategy == "canary"
+
+    - name: Execute shadow strategy
+      include_tasks: roles/deployment_strategies/tasks/shadow.yaml
+      when: deployment_strategy == "shadow"
+
+    - name: Post-deployment validation
+      include_tasks: roles/deployment_strategies/tasks/post-deployment.yaml
