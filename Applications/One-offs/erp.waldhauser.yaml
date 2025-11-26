@@ -1,13 +1,9 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: erpnext
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: erp-site-html
-  namespace: erpnext
+  namespace: apps
 data:
    index.html: |
     <!doctype html>
@@ -222,7 +218,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: erp-site-deployment
-  namespace: erpnext
+  namespace: apps
   labels:
     app: erp-site
 spec:
@@ -259,7 +255,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: erp-site-svc
-  namespace: erpnext
+  namespace: apps
   labels:
     app: erp-site
 spec:
@@ -276,7 +272,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: erp-waldhauser-cert
-  namespace: erpnext
+  namespace: apps
 spec:
   secretName: erp-waldhauser-tls 
   issuerRef:
@@ -291,7 +287,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: erp-site-ingress
-  namespace: erpnext
+  namespace: apps
   annotations:
     # Use your Traefik ingress class or ingressClassName below
     kubernetes.io/ingress.class: "traefik"
