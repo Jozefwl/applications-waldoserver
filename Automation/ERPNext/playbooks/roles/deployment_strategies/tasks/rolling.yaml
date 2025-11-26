@@ -38,22 +38,29 @@
       debug:
         msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
 
-    - name: Wait for deployment to stabilize
-      kubernetes.core.k8s_info:
-        kubeconfig: "{{ kubeconfig }}"
-        kind: Deployment
-        namespace: "{{ kubernetes_namespace }}"
-        name: "{{ helm_release_name }}-nginx"
-      register: deployment_status
-      until: >
-        deployment_status.resources | length > 0 and
-        deployment_status.resources[0].status.readyReplicas is defined and
-        deployment_status.resources[0].status.readyReplicas == deployment_status.resources[0].spec.replicas and
-        deployment_status.resources[0].status.updatedReplicas is defined and
-        deployment_status.resources[0].status.updatedReplicas == deployment_status.resources[0].spec.replicas
+    - name: Read helm values file
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse values into a fact
+      ansible.builtin.set_fact:
+        helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    - name: Display debug message
+      ansible.builtin.debug:
+        msg: "tenant https://{{ helmchart_values.ingress.hosts[0].host }}"
+
+    - name: Ping first tenant until it's available
+      ansible.builtin.get_url:
+        url: "https://{{ helmchart_values.ingress.hosts[0].host }}"
+        timeout: 3
+      register: tenant_check
       retries: 60
-      delay: 5
+      delay: 2
+      until: tenant_check.status_code is defined and tenant_check.status_code < 500
       when: helm_release is succeeded
+
 
     - name: Display release status
       debug:
@@ -63,6 +70,7 @@
     - name: Display rollback message
       debug:
         msg: "Deployment failed. Helm atomic rollback should have been triggered automatically."
+      when: helm_release is failed
 
     - name: Manual rollback if atomic failed
       kubernetes.core.helm:
@@ -81,6 +89,11 @@
       ignore_errors: true
       when: rollback_result is failed
 
-    - name: Fail the playbook after rollback attempt
+    - name: Display fail message
       fail:
         msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."
+      when: helm_release is failed
+    
+    - name: Display success message
+      ansible.builtin.debug:
+        msg: "Deployment successful, URL of tenant is https://{{ helmchart_values.ingress.hosts[0].host }}"
