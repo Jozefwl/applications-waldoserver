@@ -1,4 +1,5 @@
 {{- $deploymentType := .Values.deploymentStrategy.type | default "rolling" }}
+#{{- $color := .Values.deploymentStrategy.parameters.color | default "blue" }}
 {{- $isBlueGreen := eq $deploymentType "blue-green" }}
 {{- $isCanary := eq $deploymentType "canary" }}
 {{- $isShadow := eq $deploymentType "shadow" }}
@@ -6,16 +7,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: >-
-    {{- if $isBlueGreen -}}
-    {{ include "erpnext.fullname" . }}-nginx-blue
-    {{- else if $isCanary -}}
-    {{ include "erpnext.fullname" . }}-nginx
-    {{- else if $isShadow -}}
-    {{ include "erpnext.fullname" . }}-nginx
-    {{- else -}}
-    {{ include "erpnext.fullname" . }}-nginx
-    {{- end }}
+  name: {{ include "erpnext.fullname" . }}-nginx #   name: {{ include "erpnext.fullname" . }}-nginx{{ if eq $deploymentType "blue-green" }}-{{ $color }}{{ end }}
   labels:
     {{- include "erpnext.labels" . | nindent 4 }}
     app.kubernetes.io/component: nginx
@@ -107,7 +99,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - name: http
-          containerPort: 8080
+          containerPort: {{ .Values.nginx.service.port }}
           protocol: TCP
         
         env:

@@ -5,6 +5,9 @@
       debug:
         msg: |
           image tag: {{ new_erpnext_image_tag }}
+          release name: {{ helm_release_name }}
+          namespace: {{ kubernetes_namespace }}
+          chart: {{ helm_chart_path }}
 
     - name: Update Helm values for rolling strategy
       set_fact:
@@ -18,7 +21,7 @@
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig_path: "{{ kubeconfig }}"
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
         values: "{{ helm_values }}"
@@ -27,9 +30,13 @@
             value_type: string
         state: present
         wait: true
-        wait_timeout: 600
+        wait_timeout: 600s
         atomic: true  # Automatically rolls back on failure
       register: helm_release
+
+    - name: Debug helm release output
+      debug:
+        msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
 
     - name: Wait for deployment to stabilize
       kubernetes.core.k8s_info:

@@ -27,7 +27,7 @@ push_target_backend: cloud/metrics-api
 # deployment
 namespace: apps
 namespace_cdn: cdn
-version_frontend: 0.1.5
+version_frontend: 0.1.6
 version_backend: 0.1.2
 frontend_app_name: "website-blog"
 backend_app_name: "metrics-api"

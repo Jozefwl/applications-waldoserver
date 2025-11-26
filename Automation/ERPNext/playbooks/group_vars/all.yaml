@@ -2,5 +2,6 @@ deployment_strategy: rolling
 kubernetes_namespace: erpnext
 helm_release_name: erpnext
 helm_chart_path: "{{ playbook_dir }}/../../../Applications/ERPNext/erpnext-official/erpnext"
-new_erpnext_image_tag: v15.87.2
+new_erpnext_image_tag: v15.87.1
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
+cacert_path: /etc/rancher/ssl/cacerts.pem
