@@ -12,6 +12,6 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: {{ include "erpnext.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ include "erpnext.name" . }}-nginx
+    app.kubernetes.io/instance: {{ .Release.Name }}-nginx
     app.kubernetes.io/component: nginx

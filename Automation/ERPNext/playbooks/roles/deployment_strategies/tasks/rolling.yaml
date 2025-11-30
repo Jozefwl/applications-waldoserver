@@ -8,15 +8,23 @@
           release name: {{ helm_release_name }}
           namespace: {{ kubernetes_namespace }}
           chart: {{ helm_chart_path }}
+    
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
 
-    - name: Update Helm values for rolling strategy
-      set_fact:
-        helm_values:
-          deploymentStrategy:
-            type: rolling
-            parameters:
-              maxUnavailable: 0
-              maxSurge: 1
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    - name: Merge rolling strategy with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine({'deploymentStrategy': {'type': 'rolling', 'parameters': {'maxUnavailable': 0, 'maxSurge': 1}}}) }}"
+
+    # - name: Show merged values.yaml  
+    #   debug:
+    #     msg: Helm values= "{{ helm_values }}"
 
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
@@ -34,9 +42,9 @@
         atomic: true  # Automatically rolls back on failure
       register: helm_release
 
-    - name: Debug helm release output
-      debug:
-        msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
+    # - name: Display debug message
+    #   debug:
+    #     msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
 
     - name: Read helm values file
       ansible.builtin.slurp:
@@ -47,29 +55,55 @@
       ansible.builtin.set_fact:
         helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
-    - name: Display debug message
-      ansible.builtin.debug:
-        msg: "tenant https://{{ helmchart_values.ingress.hosts[0].host }}"
+    # - name: Display debug message
+    #   debug:
+    #     msg: "tenant https://{{ helmchart_values.ingress.hosts[0].host }}/"
+
+    - name: Wait for all jobs in namespace to complete
+      block:
+      - name: Get all jobs in namespace
+        kubernetes.core.k8s_info:
+          kubeconfig: "{{ kubeconfig }}"
+          kind: Job
+          namespace: "{{ kubernetes_namespace }}"
+        register: all_jobs
+
+    - name: Wait for each job to complete
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Job
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ item.metadata.name }}"
+      loop: "{{ all_jobs.resources }}"
+      register: job_wait
+      until: 
+        - job_wait.resources[0].status.succeeded | default(0) > 0
+        # OR job_wait.resources[0].status.failed | default(0) > 0
+      retries: 100
+      delay: 7
+      loop_control:
+        label: "{{ item.metadata.name }}"
 
     - name: Ping first tenant until it's available
-      ansible.builtin.get_url:
-        url: "https://{{ helmchart_values.ingress.hosts[0].host }}"
-        timeout: 3
+      ansible.builtin.shell: |
+        curl -s -o /dev/null -w "%{http_code}" "https://{{ helmchart_values.ingress.hosts[0].host }}/"
       register: tenant_check
-      retries: 60
-      delay: 2
-      until: tenant_check.status_code is defined and tenant_check.status_code < 500
+      retries: 100
+      delay: 5
+      until: tenant_check.stdout | int < 400
       when: helm_release is succeeded
 
 
-    - name: Display release status
-      debug:
-        msg: "Helm release status: {{ helm_release.status }}"
+    # - name: Display release status
+    #   debug:
+    #     msg: "Helm release status: {{ helm_release.status }}"
 
   rescue:
-    - name: Display rollback message
-      debug:
-        msg: "Deployment failed. Helm atomic rollback should have been triggered automatically."
+    - name: Confirm rollback deployment
+      pause:
+        prompt: |
+          -------------- ROLLBACK AFTER HELM FAILURE --------------
+          Press enter to continue or Ctrl+C to abort
       when: helm_release is failed
 
     - name: Manual rollback if atomic failed
@@ -95,5 +129,5 @@
       when: helm_release is failed
     
     - name: Display success message
-      ansible.builtin.debug:
+      debug:
         msg: "Deployment successful, URL of tenant is https://{{ helmchart_values.ingress.hosts[0].host }}"

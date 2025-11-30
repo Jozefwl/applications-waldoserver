@@ -64,7 +64,7 @@ image:
   pullPolicy: IfNotPresent
 
 nginx:
-  replicaCount: 1
+  replicaCount: 2
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -114,7 +114,7 @@ nginx:
 
 worker:
   gunicorn:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -144,7 +144,7 @@ worker:
     sidecars: []
 
   default:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -166,7 +166,7 @@ worker:
     sidecars: []
 
   short:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -188,7 +188,7 @@ worker:
     sidecars: []
 
   long:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -273,7 +273,7 @@ worker:
     periodSeconds: 5
 
 socketio:
-  replicaCount: 1
+  replicaCount: 2
   autoscaling:
     enabled: false
     minReplicas: 1
