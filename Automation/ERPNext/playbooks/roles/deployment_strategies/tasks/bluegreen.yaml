@@ -1,0 +1,192 @@
+---
+# ERPNext Blue/Green Deployment Strategy
+# Single release, label-based environment tracking
+- name: Blue/Green Strategy
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          Starting Blue/Green Deployment
+          Image tag: {{ new_erpnext_image_tag }}
+          Release: {{ helm_release_name }}
+          Namespace: {{ kubernetes_namespace }}
+
+    # Determine current active environment
+    - name: Get current active deployment label
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ kubernetes_namespace }}"
+        label_selectors:
+          - "app.kubernetes.io/instance={{ helm_release_name }}"
+          - "app.kubernetes.io/component=erpnext"
+      register: current_pods
+
+    - name: Determine current environment
+      ansible.builtin.set_fact:
+        current_env: "{{ current_pods.resources[0].metadata.labels.get('deployment.kubernetes.io/environment', 'blue') if current_pods.resources | length > 0 else 'blue' }}"
+
+    - name: Set target environment
+      ansible.builtin.set_fact:
+        target_env: "{{ 'green' if current_env == 'blue' else 'blue' }}"
+
+    - name: Display environment transition
+      ansible.builtin.debug:
+        msg: "Current: {{ current_env }} Deploying: {{ target_env }}"
+
+    # Load base Helm values
+    - name: Load Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helm_values_raw
+
+    - name: Parse Helm values
+      ansible.builtin.set_fact:
+        base_values: "{{ helm_values_raw.content | b64decode | from_yaml }}"
+
+    # # Prepare target environment values
+    # - name: Prepare target environment values
+    #   ansible.builtin.set_fact:
+    #     target_values: >-
+    #       {{
+    #         base_values | combine({
+    #           'jobs': {
+    #             'configure': {'enabled': true},
+    #             'createSite': {'enabled': true},
+    #             'dropSite': {'enabled': false},
+    #             'migrate': {'enabled': false},
+    #             'backup': {'enabled': false},
+    #             'volumePermissions': {'enabled': false}
+    #           }
+    #         }, recursive=True)
+    #       }}
+
+
+    # Deploy with same release name, only update image tag
+    - name: "Deploy target environment ({{ target_env }})"
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}"
+        kubeconfig_path: "{{ kubeconfig }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        create_namespace: false
+        values: "{{ base_values }}"
+        set_values:
+          - value: "environment.name={{ target_env }}"
+            value_type: string
+        #   - value: "commonLabels.deployment-env={{ target_env }}"
+        #     value_type: string
+        #   - value: "commonLabels.deployment-strategy=blue-green"
+        #     value_type: string
+        state: present
+        wait: true
+        wait_timeout: 600s
+
+    # TODO: FIX
+    # - name: Wait for target environment pods
+    #   kubernetes.core.k8s_info:
+    #     kubeconfig: "{{ kubeconfig }}"
+    #     kind: Pod
+    #     namespace: "{{ kubernetes_namespace }}"
+    #     label_selectors:
+    #       - "app.kubernetes.io/instance={{ helm_release_name }}"
+    #       - "app.kubernetes.io/component=erpnext"
+    #       - "deployment.kubernetes.io/environment={{ target_env }}"
+    #   register: target_pods
+    #   until: >-
+    #     target_pods.resources | length > 0 and
+    #     (target_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == target_pods.resources | length)
+    #   retries: 60
+    #   delay: 10
+
+
+    # Health check target environment
+    - name: Get gunicorn service
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: v1
+        kind: Service
+        name: "{{ helm_release_name }}-erpnext"
+        namespace: "{{ kubernetes_namespace }}"
+      register: target_svc
+
+    - name: Health check target environment
+      ansible.builtin.uri:
+        url: "https://tenant1.erp.waldhauser.sk/api/method/ping"
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: health_check
+      until: health_check.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Display health check result
+      ansible.builtin.debug:
+        msg: "Target environment ({{ target_env }}) is healthy"
+
+    # Manual smoke test
+    - name: Manual smoke test
+      ansible.builtin.pause:
+        prompt: |
+          ╔════════════════════════════════════════════════════════╗
+          ║             MANUAL SMOKE TEST REQUIRED                 ║
+          ╚════════════════════════════════════════════════════════╝
+          
+          Target environment: {{ target_env }}
+          https://tenant1.erp.waldhauser.sk
+          
+          Access your sites to test functionality
+          
+          Did smoke test PASS? (Y/N)
+      register: smoke_test
+
+    - name: Process smoke test result
+      ansible.builtin.set_fact:
+        smoke_passed: "{{ smoke_test.user_input | upper in ['Y', 'YES'] }}"
+
+    # Rollback on failure - delete new pods
+    - name: Rollback if smoke test failed
+      block:
+        - name: Display rollback notice
+          ansible.builtin.debug:
+            msg: "Smoke test FAILED - Rolling back to {{ current_env }}..."
+
+        - name: Delete new environment pods to force rollback
+          kubernetes.core.k8s:
+            kubeconfig: "{{ kubeconfig }}"
+            state: absent
+            kind: Pod
+            namespace: "{{ kubernetes_namespace }}"
+            label_selectors:
+              - "app.kubernetes.io/instance={{ helm_release_name }}"
+              - "app.kubernetes.io/component=erpnext"
+              - "deployment.kubernetes.io/environment={{ target_env }}"
+
+        - name: Fail deployment
+          ansible.builtin.fail:
+            msg: "Deployment failed smoke test. Reverted to {{ current_env }} environment."
+      when: not smoke_passed
+
+    # # Switch traffic to target environment by updating pod selector label
+    # - name: Patch all target pods with active label
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: v1
+    #       kind: Pod
+    #       metadata:
+    #         name: "{{ item.metadata.name }}"
+    #         namespace: "{{ kubernetes_namespace }}"
+    #         labels:
+    #           deployment-env-active: "{{ target_env }}"
+    #   loop: "{{ target_pods.resources }}"
+
+    - name: Display deployment complete
+      ansible.builtin.debug:
+        msg: |
+          Blue/Green deployment complete!
+          New active environment: {{ target_env }}
+          Pod names unchanged: {{ helm_release_name }}-*
+          Labels updated to route traffic

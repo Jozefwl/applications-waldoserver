@@ -15,6 +15,7 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "erpnext.name" . }}-scheduler
         app.kubernetes.io/instance: {{ .Release.Name }}-scheduler
+        deployment.kubernetes.io/environment: {{ .Values.environment.name }}
     spec:
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

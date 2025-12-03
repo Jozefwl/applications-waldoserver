@@ -7,7 +7,7 @@
     - name: Validate deployment strategy
       ansible.builtin.assert:
         that: 
-          - deployment_strategy in ['bluegreen','canary','ramped','recreate','rolling','shadow']
+          - deployment_strategy in ['bluegreen','canary','ramped','recreate','rolling','shadow','scaledown']
         fail_msg: "ERROR ! Deployment strategy wrong: {{ deployment_strategy }}"
         success_msg: "SUCCESS - Detected deployment strategy: {{ deployment_strategy }}"
 
@@ -96,8 +96,8 @@
       when: deployment_strategy == "ramped"
 
     - name: Execute blue-green strategy
-      include_tasks: roles/deployment_strategies/tasks/blue-green.yaml
-      when: deployment_strategy == "blue-green"
+      include_tasks: roles/deployment_strategies/tasks/bluegreen.yaml
+      when: deployment_strategy == "bluegreen"
 
     - name: Execute canary strategy
       include_tasks: roles/deployment_strategies/tasks/canary.yaml
@@ -106,6 +106,10 @@
     - name: Execute shadow strategy
       include_tasks: roles/deployment_strategies/tasks/shadow.yaml
       when: deployment_strategy == "shadow"
+    
+    - name: Scale replicas to 0 for bluegreen
+      include_tasks: roles/deployment_strategies/tasks/scaledown.yaml
+      when: deployment_strategy == "scaledown"
 
     - name: Post-deployment validation
       include_tasks: roles/deployment_strategies/tasks/post-deployment.yaml

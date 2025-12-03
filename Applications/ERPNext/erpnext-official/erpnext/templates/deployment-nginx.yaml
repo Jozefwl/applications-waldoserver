@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/name: {{ include "erpnext.name" . }}-nginx
         app.kubernetes.io/instance: {{ .Release.Name }}-nginx
         app.kubernetes.io/component: nginx
+        deployment.kubernetes.io/environment: {{ .Values.environment.name }}
     spec:
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
