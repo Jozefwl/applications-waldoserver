@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sifonium S.R.O - Open Source Carbonation Solutions</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+
+header {
+background: linear-gradient(135deg, #2d5016 0%, #4a7c2c 50%, #6ba83e 100%);
+color: #fff;
+padding: 50px 20px;
+text-align: center;
+box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+position: relative;
+overflow: hidden;
+}
+
+header::before {
+content: '';
+position: absolute;
+top: -50%;
+left: -50%;
+width: 200%;
+height: 200%;
+background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+background-size: 30px 30px;
+animation: bubbles 20s linear infinite;
+}
+
+@keyframes bubbles {
+0% { transform: translate(0, 0); }
+100% { transform: translate(50px, 50px); }
+}
+
+header h1 { 
+margin: 0; 
+font-size: 48px; 
+position: relative;
+text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+header h2 { 
+margin: 10px 0 0; 
+font-size: 22px; 
+opacity: 0.95;
+position: relative;
+font-weight: 300;
+}
+
+.lang-toggle { 
+text-align: center; 
+margin: 30px auto;
+max-width: 900px;
+}
+
+.lang-toggle button {
+padding: 12px 30px;
+margin: 0 10px;
+border: 2px solid #4a7c2c;
+border-radius: 25px;
+font-size: 16px;
+cursor: pointer;
+background: #fff;
+color: #4a7c2c;
+transition: all 0.3s ease;
+font-weight: 600;
+}
+
+.lang-toggle button:hover {
+background: #4a7c2c;
+color: #fff;
+transform: translateY(-2px);
+box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.lang-toggle button.active {
+background: #4a7c2c;
+color: #fff;
+}
+
+.hero-section {
+background: linear-gradient(to right, #4a7c2c, #6ba83e);
+color: #fff;
+padding: 60px 20px;
+text-align: center;
+margin-bottom: 30px;
+}
+
+.hero-section h3 {
+font-size: 32px;
+margin: 0 0 20px 0;
+border: none;
+padding: 0;
+}
+
+.hero-section p {
+font-size: 18px;
+max-width: 800px;
+margin: 0 auto 30px;
+line-height: 1.6;
+}
+
+.cta-button {
+display: inline-block;
+padding: 15px 40px;
+background: #fff;
+color: #4a7c2c;
+text-decoration: none;
+border-radius: 30px;
+font-weight: 700;
+font-size: 18px;
+transition: all 0.3s ease;
+box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.cta-button:hover {
+transform: translateY(-3px);
+box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.section {
+background: #fff;
+width: 90%; 
+max-width: 1100px;
+margin: 20px auto;
+padding: 35px;
+border-radius: 12px;
+box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.section-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: 30px;
+margin-top: 20px;
+}
+
+h3 { 
+color: #2d5016;
+border-left: 6px solid #6ba83e; 
+padding-left: 15px;
+margin-bottom: 25px;
+font-size: 26px;
+}
+
+.info-card {
+background: #f8fcf5;
+padding: 20px;
+border-radius: 8px;
+border-left: 4px solid #6ba83e;
+}
+
+.label { 
+font-weight: 700; 
+margin-top: 15px; 
+color: #2d5016;
+font-size: 14px;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
+.value { 
+margin-bottom: 15px; 
+color: #333;
+font-size: 16px;
+padding-left: 5px;
+}
+
+.hidden { display: none; }
+
+.features-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+gap: 25px;
+margin-top: 30px;
+}
+
+.feature-card {
+background: linear-gradient(135deg, #f8fcf5 0%, #e8f5e0 100%);
+padding: 30px;
+border-radius: 12px;
+text-align: center;
+transition: transform 0.3s ease;
+border: 2px solid #e0f0d8;
+}
+
+.feature-card:hover {
+transform: translateY(-5px);
+box-shadow: 0 8px 20px rgba(74,124,44,0.2);
+}
+
+.feature-icon {
+font-size: 48px;
+margin-bottom: 15px;
+}
+
+.feature-title {
+color: #2d5016;
+font-size: 20px;
+font-weight: 700;
+margin-bottom: 10px;
+}
+
+.feature-desc {
+color: #555;
+line-height: 1.5;
+}
+
+.co2-canister {
+width: 80px;
+height: 120px;
+background: linear-gradient(180deg, #c0c0c0 0%, #808080 100%);
+border-radius: 10px 10px 40px 40px;
+margin: 0 auto 20px;
+box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+position: relative;
+}
+
+.co2-canister::before {
+content: 'CO₂';
+position: absolute;
+top: 40%;
+left: 50%;
+transform: translate(-50%, -50%);
+color: #fff;
+font-weight: 700;
+font-size: 18px;
+}
+
+.co2-canister::after {
+content: '';
+position: absolute;
+top: -15px;
+left: 50%;
+transform: translateX(-50%);
+width: 30px;
+height: 30px;
+background: #404040;
+border-radius: 50%;
+}
+
+footer {
+background: #2d5016;
+color: #fff;
+text-align: center;
+padding: 30px 20px;
+margin-top: 50px;
+}
+
+footer a {
+color: #6ba83e;
+text-decoration: none;
+font-weight: 600;
+}
+
+footer a:hover {
+text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+header h1 { font-size: 32px; }
+header h2 { font-size: 18px; }
+.hero-section h3 { font-size: 24px; }
+.section { padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Sifonium S.R.O</h1>
+<h2>Otevřená řešení pro sycení nápojů | Open Source Carbonation Solutions</h2>
+</header>
+
+<div class="lang-toggle">
+<button onclick="showEN()" class="active">English</button>
+<button onclick="showCZ()">Čeština</button>
+</div>
+
+<!-- ENGLISH VERSION -->
+<div id="en">
+<div class="hero-section">
+<div class="co2-canister"></div>
+<h3>Revolutionizing Home Carbonation</h3>
+<p>We design and manufacture open-source soda syphons that are compatible with any standard CO₂ cartridge. No proprietary lock-in, no expensive refills, just pure carbonation freedom.</p>
+<a href="https://github.com/Jozefwl" class="cta-button">View Our Open Source Designs →</a>
+</div>
+
+<div class="section">
+<h3>About Sifonium S.R.O</h3>
+<div class="section-grid">
+<div class="info-card">
+<div class="label">Company Name</div>
+<div class="value">Sifonium S.R.O</div>
+<div class="label">Abbreviation</div>
+<div class="value">SS</div>
+<div class="label">Tax ID (DIČ)</div>
+<div class="value">CZ28476521</div>
+<div class="label">Company ID (IČO)</div>
+<div class="value">28476521</div>
+</div>
+<div class="info-card">
+<div class="label">Founded</div>
+<div class="value">March 15, 2019</div>
+<div class="label">Country</div>
+<div class="value">Czech Republic</div>
+<div class="label">Currency</div>
+<div class="value">CZK (Czech Koruna)</div>
+<div class="label">Domain</div>
+<div class="value">Manufacturing - Consumer Goods</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Our Mission</h3>
+<p style="font-size: 18px; line-height: 1.8; color: #333;">
+At Sifonium, we believe carbonation should be accessible, affordable, and sustainable. That's why we've open-sourced all our soda syphon designs, allowing anyone to manufacture, modify, or repair their devices. Our syphons work with any standard CO₂ cartridge, eliminating the need for expensive proprietary refills that plague the industry.
+</p>
+<p style="font-size: 18px; line-height: 1.8; color: #333; margin-top: 20px;">
+We're committed to reducing plastic waste by encouraging users to carbonate tap water at home rather than purchasing bottled sparkling water. Every syphon sold is a step toward a more sustainable future.
+</p>
+</div>
+
+<div class="section">
+<h3>Why Choose Sifonium?</h3>
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🔓</div>
+<div class="feature-title">100% Open Source</div>
+<div class="feature-desc">All designs, schematics, and 3D models available on GitHub under MIT license</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">💰</div>
+<div class="feature-title">No Lock-In</div>
+<div class="feature-desc">Use any standard CO₂ cartridge from any supplier worldwide</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🌱</div>
+<div class="feature-title">Eco-Friendly</div>
+<div class="feature-desc">Reduce plastic bottle waste by carbonating tap water at home</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🔧</div>
+<div class="feature-title">Repairable</div>
+<div class="feature-desc">Easy to disassemble and repair - all parts are standardized and available</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Company Information</h3>
+<div class="label">Registered Address</div>
+<div class="value">Pražská 1789/28, 250 01 Brandýs nad Labem-Stará Boleslav, Czech Republic</div>
+<div class="label">Manufacturing Facility</div>
+<div class="value">Průmyslová 456, 280 02 Kolín, Czech Republic</div>
+<div class="label">Email</div>
+<div class="value">info@sifonium.cz</div>
+<div class="label">Phone</div>
+<div class="value">+420 321 654 987</div>
+<div class="label">Website</div>
+<div class="value">www.sifonium.cz</div>
+<div class="label">GitHub Repository</div>
+<div class="value"><a href="https://github.com/Jozefwl" style="color: #4a7c2c; font-weight: 600;">github.com/Jozefwl</a></div>
+</div>
+
+<div class="section">
+<h3>Leadership Team</h3>
+<div class="section-grid">
+<div class="info-card">
+<div class="label">CEO & Founder</div>
+<div class="value">Ing. Martin Kovář</div>
+<div class="label">CTO</div>
+<div class="value">Bc. Petra Nováková</div>
+</div>
+<div class="info-card">
+<div class="label">Head of Manufacturing</div>
+<div class="value">Josef Dvořák</div>
+<div class="label">Head of Design</div>
+<div class="value">Mgr. Lucie Svobodová</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Certifications & Standards</h3>
+<div class="value">✓ CE Certified for European market</div>
+<div class="value">✓ ISO 9001:2015 Quality Management</div>
+<div class="value">✓ ISO 14001:2015 Environmental Management</div>
+<div class="value">✓ Food-safe materials certified</div>
+<div class="value">✓ Pressure vessel safety standards compliant</div>
+</div>
+</div>
+
+<!-- CZECH VERSION -->
+<div id="cz" class="hidden">
+<div class="hero-section">
+<div class="co2-canister"></div>
+<h3>Revoluce v domácím sycení nápojů</h3>
+<p>Navrhujeme a vyrábíme open-source sodové sifony kompatibilní s jakoukoliv standardní CO₂ bombičkou. Žádné proprietární uzamčení, žádné drahé náplně, jen čistá svoboda sycení.</p>
+<a href="https://github.com/Jozefwl" class="cta-button">Zobrazit naše Open Source návrhy →</a>
+</div>
+
+<div class="section">
+<h3>O společnosti Sifonium S.R.O</h3>
+<div class="section-grid">
+<div class="info-card">
+<div class="label">Název společnosti</div>
+<div class="value">Sifonium S.R.O</div>
+<div class="label">Zkratka</div>
+<div class="value">SS</div>
+<div class="label">DIČ</div>
+<div class="value">CZ28476521</div>
+<div class="label">IČO</div>
+<div class="value">28476521</div>
+</div>
+<div class="info-card">
+<div class="label">Datum založení</div>
+<div class="value">15. března 2019</div>
+<div class="label">Země</div>
+<div class="value">Česká republika</div>
+<div class="label">Měna</div>
+<div class="value">CZK (Česká koruna)</div>
+<div class="label">Doména</div>
+<div class="value">Výroba - Spotřební zboží</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Naše mise</h3>
+<p style="font-size: 18px; line-height: 1.8; color: #333;">
+Ve společnosti Sifonium věříme, že perlivé nápoje by měly být dostupné, cenově výhodné a udržitelné. Proto jsme zveřejnili všechny naše návrhy sodových sifonů jako open source, což umožňuje komukoli vyrábět, upravovat nebo opravovat svá zařízení. Naše sifony fungují s jakoukoli standardní CO₂ bombičkou, čímž eliminují potřebu drahých proprietárních náplní, které sužují tento průmysl.
+</p>
+<p style="font-size: 18px; line-height: 1.8; color: #333; margin-top: 20px;">
+Jsme odhodláni snižovat množství plastového odpadu tím, že podporujeme uživatele v sycení kohoutkové vody doma místo nákupu balené perlivé vody. Každý prodaný sifon je krokem k udržitelnější budoucnosti.
+</p>
+</div>
+
+<div class="section">
+<h3>Proč zvolit Sifonium?</h3>
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🔓</div>
+<div class="feature-title">100% Open Source</div>
+<div class="feature-desc">Všechny návrhy, schémata a 3D modely dostupné na GitHubu pod MIT licencí</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">💰</div>
+<div class="feature-title">Bez uzamčení</div>
+<div class="feature-desc">Používejte jakoukoli standardní CO₂ bombičku od jakéhokoli dodavatele po celém světě</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🌱</div>
+<div class="feature-title">Ekologické</div>
+<div class="feature-desc">Snižte odpad z plastových lahví sycením kohoutkové vody doma</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🔧</div>
+<div class="feature-title">Opravitelné</div>
+<div class="feature-desc">Snadné rozebírání a opravy - všechny díly jsou standardizované a dostupné</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Informace o společnosti</h3>
+<div class="label">Sídlo společnosti</div>
+<div class="value">Pražská 1789/28, 250 01 Brandýs nad Labem-Stará Boleslav, Česká republika</div>
+<div class="label">Výrobní závod</div>
+<div class="value">Průmyslová 456, 280 02 Kolín, Česká republika</div>
+<div class="label">Email</div>
+<div class="value">info@sifonium.cz</div>
+<div class="label">Telefon</div>
+<div class="value">+420 321 654 987</div>
+<div class="label">Webové stránky</div>
+<div class="value">www.sifonium.cz</div>
+<div class="label">GitHub repozitář</div>
+<div class="value"><a href="https://github.com/Jozefwl" style="color: #4a7c2c; font-weight: 600;">github.com/Jozefwl</a></div>
+</div>
+
+<div class="section">
+<h3>Vedení společnosti</h3>
+<div class="section-grid">
+<div class="info-card">
+<div class="label">Generální ředitel a zakladatel</div>
+<div class="value">Ing. Martin Kovář</div>
+<div class="label">Technický ředitel</div>
+<div class="value">Bc. Petra Nováková</div>
+</div>
+<div class="info-card">
+<div class="label">Vedoucí výroby</div>
+<div class="value">Josef Dvořák</div>
+<div class="label">Vedoucí designu</div>
+<div class="value">Mgr. Lucie Svobodová</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>Certifikace a standardy</h3>
+<div class="value">✓ CE certifikace pro evropský trh</div>
+<div class="value">✓ ISO 9001:2015 Řízení kvality</div>
+<div class="value">✓ ISO 14001:2015 Environmentální management</div>
+<div class="value">✓ Certifikované materiály bezpečné pro potraviny</div>
+<div class="value">✓ Splňuje bezpečnostní normy pro tlakové nádoby</div>
+</div>
+</div>
+
+<footer>
+<p><strong>Sifonium S.R.O</strong> | IČO: 28476521 | DIČ: CZ28476521</p>
+<p>Open Source Carbonation Solutions since 2019</p>
+<p>GitHub: <a href="https://github.com/Jozefwl">github.com/Jozefwl</a></p>
+<p style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+Sycení s láskou v České republice 🇨🇿 | Carbonating with love in the Czech Republic
+</p>
+</footer>
+
+<script>
+function showEN() { 
+document.getElementById('en').classList.remove('hidden'); 
+document.getElementById('cz').classList.add('hidden');
+document.querySelectorAll('.lang-toggle button')[0].classList.add('active');
+document.querySelectorAll('.lang-toggle button')[1].classList.remove('active');
+}
+
+function showCZ() { 
+document.getElementById('cz').classList.remove('hidden'); 
+document.getElementById('en').classList.add('hidden');
+document.querySelectorAll('.lang-toggle button')[1].classList.add('active');
+document.querySelectorAll('.lang-toggle button')[0].classList.remove('active');
+}
+</script>
+
+</body>
+</html>
