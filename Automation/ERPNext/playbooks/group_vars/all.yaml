@@ -6,19 +6,21 @@ helm_chart_path: "{{ playbook_dir }}/../../../Applications/ERPNext/erpnext-offic
 deployment_tag: production
 new_erpnext_image_tag: v15.87.2
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
+first_install: false
 
 # ============================================
 # BLUE-GREEN DEPLOYMENT CONFIGURATION
 # ============================================
 
-# DEBUG VARS !!! DONT USE
+# DEBUG VARS !!! DONT USE ============================================
+
 target_env: blue
 #     active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
 #     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
 active_release: "{{ helm_release_name + '-green' }}"
 target_release: "{{ helm_release_name + '-blue' }}"
 
-# END OF DEBUG VARS
+# END OF DEBUG VARS ==================================================
 
 # Force deployment flags (skip confirmation prompts)
 force_deployment: false    # Skip deployment confirmation

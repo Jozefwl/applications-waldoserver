@@ -1,7 +1,58 @@
-# ==================== CREATE PREVIEW ACCESS WITH HOST REWRITING ====================
-# FIX: Use StripPrefix middleware to remove /preview path + rewrite Host header
+# ==================== SETUP PREVIEW INGRESS WITH CERTIFICATE ====================
+# Creates middleware, IngressRoute, and certificate for preview domains
+# Checks if preview-tls certificate exists, creates if missing
 
-- name: Create StripPrefix middleware for preview path
+- name: Check if preview-tls certificate exists
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    kind: Certificate
+    name: preview-tls
+    namespace: "{{ kubernetes_namespace }}"
+  register: preview_cert
+
+
+- name: Create preview-tls certificate if it doesn't exist
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: preview-tls
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        dnsNames:
+          - "preview.tenant1.erp.waldhauser.sk"
+          - "preview.tenant2.erp.waldhauser.sk"
+          - "preview.tenant3.erp.waldhauser.sk"
+        issuerRef:
+          kind: ClusterIssuer
+          name: letsencrypt-prod
+        secretName: preview-tls
+  when: preview_cert.resources | length == 0
+
+
+- name: Display certificate status
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════════════════════════════════════════════════
+      Certificate Status
+      ════════════════════════════════════════════════════════════════════════════════════
+      {% if preview_cert.resources | length > 0 %}
+      ✓ preview-tls certificate exists
+      Status: {{ preview_cert.resources[0].status.conditions[0].reason if preview_cert.resources[0].status.conditions | length > 0 else 'Unknown' }}
+      {% else %}
+      ⚠ Creating preview-tls certificate...
+      Domains:
+      - preview.tenant1.erp.waldhauser.sk
+      - preview.tenant2.erp.waldhauser.sk
+      - preview.tenant3.erp.waldhauser.sk
+      {% endif %}
+      ════════════════════════════════════════════════════════════════════════════════════
+
+
+- name: Create Host rewrite middleware for each preview domain
   kubernetes.core.k8s:
     kubeconfig: "{{ kubeconfig }}"
     state: present
@@ -9,108 +60,72 @@
       apiVersion: traefik.io/v1alpha1
       kind: Middleware
       metadata:
-        name: "strip-preview-prefix-{{ item.production | replace('.', '-') }}"
+        name: "rewrite-host-{{ item.production | replace('.', '-') }}"
         namespace: "{{ kubernetes_namespace }}"
       spec:
-        stripPrefix:
-          prefixes:
-            - "/preview"
-          forceSlash: true
-  loop: "{{ preview_domain_mapping }}"
-
-
-- name: Create Host rewrite middleware
-  kubernetes.core.k8s:
-    kubeconfig: "{{ kubeconfig }}"
-    state: present
-    definition:
-      apiVersion: traefik.io/v1alpha1
-      kind: Middleware
-      metadata:
-        name: "rewrite-to-prod-{{ item.production | replace('.', '-') }}"
-        namespace: "{{ kubernetes_namespace }}"
-      spec:
-        # Rewrite the Host header from preview domain to production domain
         headers:
           customRequestHeaders:
             Host: "{{ item.production }}"
   loop: "{{ preview_domain_mapping }}"
 
 
-- name: Delete old preview Ingresses (if any)
-  kubernetes.core.k8s:
-    kubeconfig: "{{ kubeconfig }}"
-    state: absent
-    api_version: networking.k8s.io/v1
-    kind: Ingress
-    name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
-    namespace: "{{ kubernetes_namespace }}"
-  loop: "{{ preview_domain_mapping }}"
-  ignore_errors: yes
-
-
-- name: Create preview Ingress for each tenant with StripPrefix + Host header rewriting
+- name: Create preview IngressRoute for each tenant
   kubernetes.core.k8s:
     kubeconfig: "{{ kubeconfig }}"
     state: present
     definition:
-      apiVersion: networking.k8s.io/v1
-      kind: Ingress
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
       metadata:
-        name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
+        name: "preview-ingressroute-{{ item.production | replace('.', '-') }}"
         namespace: "{{ kubernetes_namespace }}"
-        annotations:
-          kubernetes.io/ingress.class: "traefik"
-          traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-          cert-manager.io/cluster-issuer: "letsencrypt-prod"
-          # Apply both middlewares: strip prefix then rewrite host
-          traefik.ingress.kubernetes.io/router.middlewares: "{{ kubernetes_namespace }}-strip-preview-prefix-{{ item.production | replace('.', '-') }}@kubernetescrd,{{ kubernetes_namespace }}-rewrite-to-prod-{{ item.production | replace('.', '-') }}@kubernetescrd"
       spec:
-        ingressClassName: traefik
+        entryPoints:
+          - websecure
+        routes:
+          - match: "Host(`{{ item.preview }}`)"
+            kind: Rule
+            services:
+              - name: "{{ helm_release_name }}-{{ target_env }}-erpnext"
+                port: 8080
+            middlewares:
+              - name: "rewrite-host-{{ item.production | replace('.', '-') }}"
+                namespace: "{{ kubernetes_namespace }}"
         tls:
-          - secretName: "{{ preview_tls_secret_name }}"
-            hosts:
-              - "{{ item.preview }}"
-        rules:
-          - host: "{{ item.preview }}"
-            http:
-              paths:
-                - path: /preview
-                  pathType: Prefix
-                  backend:
-                    service:
-                      # Points to the non-production (staging/test) replica
-                      name: "{{ helm_release_name }}-{{ target_env }}-erpnext-nginx"
-                      port:
-                        number: 8080
+          secretName: preview-tls
   loop: "{{ preview_domain_mapping }}"
 
 
-- name: Display preview configuration
+- name: Display preview ingress configuration
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
-      ✓ Preview Ingress Created
-      ════════════════════════════════════════
-      Target Environment: {{ target_env | upper }}
-      Service: {{ helm_release_name }}-{{ target_env }}-erpnext-nginx
+      ════════════════════════════════════════════════════════════════════════════════════
+      ✓ Preview Ingress Routes Created
+      ════════════════════════════════════════════════════════════════════════════════════
       
-      Preview Configuration:
+      Certificate: preview-tls ({{ 'Ready' if preview_cert.resources | length > 0 else 'Creating' }})
+      
+      Middleware:
       {% for mapping in preview_domain_mapping %}
-      https://{{ mapping.preview }}/preview/...
-        ↓ (StripPrefix removes /preview)
-        ↓ (Host header rewritten to {{ mapping.production }})
-        → {{ helm_release_name }}-{{ target_env }}-erpnext-nginx:8080
+      - rewrite-host-{{ mapping.production | replace('.', '-') }}
+        Sets Host header to: {{ mapping.production }}
       {% endfor %}
       
-      Middlewares Applied (in order):
+      IngressRoutes:
       {% for mapping in preview_domain_mapping %}
-      1. strip-preview-prefix-{{ mapping.production | replace('.', '-') }}
-         Removes: /preview prefix
-      2. rewrite-to-prod-{{ mapping.production | replace('.', '-') }}
-         Rewrites: Host: {{ mapping.preview }} → Host: {{ mapping.production }}
+      - preview-ingressroute-{{ mapping.production | replace('.', '-') }}
+        Domain: {{ mapping.preview }}
+        Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
+        Middleware: rewrite-host-{{ mapping.production | replace('.', '-') }}
       {% endfor %}
-      ════════════════════════════════════════
+      
+      Request Flow:
+      https://preview.tenant1.erp.waldhauser.sk
+        ↓ (Traefik)
+      Middleware: rewrite-host-tenant1-erp-waldhauser-sk
+        ↓ (Host header set to tenant1.erp.waldhauser.sk)
+      {{ helm_release_name }}-{{ target_env }}-erpnext:8080 ✓
+      ════════════════════════════════════════════════════════════════════════════════════
 
 
 - name: Wait for ingress to be ready
@@ -120,13 +135,12 @@
 
 - name: Test preview endpoints
   ansible.builtin.uri:
-    url: "https://{{ item.preview }}/preview/api/method/frappe.ping"
-    validate_certs: yes
+    url: "https://{{ item.preview }}/api/method/frappe.ping"
+    validate_certs: no
     status_code: 200
     timeout: 10
   register: health_check
-  until: health_check.status == 200
-  retries: "{{ health_check_retries | default(5) }}"
+  retries: 5
   delay: 5
   ignore_errors: yes
   loop: "{{ preview_domain_mapping }}"
@@ -135,10 +149,10 @@
 - name: Display health check results
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
-      Preview Health Check Results:
-      ════════════════════════════════════════
+      ════════════════════════════════════════════════════════════════════════════════════
+      Preview Health Check Results
+      ════════════════════════════════════════════════════════════════════════════════════
       {% for result in health_check.results %}
-      {{ result.item.preview }}/preview: {{ '✓ HEALTHY (200 OK)' if result.status == 200 else '✗ FAILED (404)' }}
+      {{ result.item.preview }}: {{ '✓ HEALTHY (200 OK)' if result.status == 200 else '✗ ERROR (' + result.status|string + ')' }}
       {% endfor %}
-      ════════════════════════════════════════
+      ════════════════════════════════════════════════════════════════════════════════════

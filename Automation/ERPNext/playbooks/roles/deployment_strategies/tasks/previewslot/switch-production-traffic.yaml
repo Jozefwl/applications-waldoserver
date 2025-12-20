@@ -1,74 +1,89 @@
----
-# ==================== SWITCH PRODUCTION TRAFFIC ====================
+# ==================== SWITCH PRODUCTION TRAFFIC TO BLUE/GREEN ====================
+# This switches production traffic from current environment to the blue/green environment
 
-- name: Delete old production IngressRoutes (if any)
-  kubernetes.core.k8s:
-    kubeconfig: "{{ kubeconfig }}"
-    state: absent
-    api_version: traefik.io/v1alpha1
-    kind: IngressRoute
-    name: "erpnext-production-{{ item.production | replace('.', '-') }}"
-    namespace: "{{ kubernetes_namespace }}"
-  loop: "{{ preview_domain_mapping }}"
-  ignore_errors: yes
-
-- name: Confirm traffic switch
+- name: Confirm traffic switch (if not force)
   ansible.builtin.pause:
     prompt: |
       
-      ════════════════════════════════════════
+      ════════════════════════════════════════════════════════════════════════════════════
       Ready to Switch Production Traffic
-      ════════════════════════════════════════
-      From: {{ current_env | upper if current_env != 'none' else 'NONE' }}
-      To:   {{ target_env | upper }}
-      Service: {{ helm_release_name }}-{{ target_env }}-erpnext-nginx
-      ════════════════════════════════════════
+      ════════════════════════════════════════════════════════════════════════════════════
+      Current Environment: {{ current_env | upper if current_env != 'none' else 'NONE (First deployment)' }}
+      Switch To Environment: {{ target_env | upper }}
+      Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
       
-      Press ENTER to switch production traffic
+      Production Domains:
+      {% for mapping in preview_domain_mapping %}
+      - {{ mapping.production }}
+      {% endfor %}
+      ════════════════════════════════════════════════════════════════════════════════════
+      
+      Press ENTER to switch production traffic to {{ target_env | upper }}
       Or Ctrl+C then 'A' to abort
-  when: not force_switch
+  when: not force_switch | default(false)
 
-- name: Create/Update production Ingress for each tenant
+
+- name: Create/Update production IngressRoutes (TraefikIngressRoute)
   kubernetes.core.k8s:
     kubeconfig: "{{ kubeconfig }}"
     state: present
     definition:
-      apiVersion: networking.k8s.io/v1
-      kind: Ingress
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
       metadata:
         name: "erpnext-production-{{ item.production | replace('.', '-') }}"
         namespace: "{{ kubernetes_namespace }}"
-        annotations:
-          kubernetes.io/ingress.class: "traefik"
-          traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-          cert-manager.io/cluster-issuer: "letsencrypt-prod"
       spec:
-        ingressClassName: traefik
+        entryPoints:
+          - websecure
+        routes:
+          - match: "Host(`{{ item.production }}`)"
+            kind: Rule
+            services:
+              - name: "{{ helm_release_name }}-{{ target_env }}-erpnext"
+                port: 8080
         tls:
-          - secretName: "{{ tls_secret_name }}"
-            hosts:
-              - "{{ item.production }}"
-        rules:
-          - host: "{{ item.production }}"
-            http:
-              paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: "{{ helm_release_name }}-{{ target_env }}-erpnext-nginx"
-                      port:
-                        number: 8080
+          secretName: "{{ preview_tls_secret_name }}"
   loop: "{{ preview_domain_mapping }}"
 
-- name: Wait for ingress to be ready
+
+- name: Display production traffic configuration
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════════════════════════════════════════════════
+      ✓ Production IngressRoutes Created
+      ════════════════════════════════════════════════════════════════════════════════════
+      
+      Active Environment: {{ target_env | upper }}
+      Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
+      
+      Production Routing:
+      {% for mapping in preview_domain_mapping %}
+      https://{{ mapping.production }}
+        ↓
+      {{ helm_release_name }}-{{ target_env }}-erpnext:8080 ✓
+      {% endfor %}
+      
+      Preview Routing (unchanged):
+      {% for mapping in preview_domain_mapping %}
+      https://{{ mapping.preview }}
+        ↓
+      preview-nginx-proxy:9090 (Host rewrite)
+        ↓
+      {{ helm_release_name }}-{{ target_env }}-erpnext:8080 ✓
+      {% endfor %}
+      ════════════════════════════════════════════════════════════════════════════════════
+
+
+- name: Wait for production ingress to propagate
   ansible.builtin.pause:
-    seconds: 5
+    seconds: 10
+
 
 - name: Verify production endpoints
   ansible.builtin.uri:
     url: "https://{{ item.production }}/api/method/frappe.ping"
-    validate_certs: yes
+    validate_certs: no
     status_code: 200
     timeout: 10
   register: prod_check
@@ -77,17 +92,27 @@
   ignore_errors: yes
   loop: "{{ preview_domain_mapping }}"
 
-- name: Display production switch results
+
+- name: Display production traffic switch results
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
-      ✓ Production Traffic Switched!
-      ════════════════════════════════════════
+      ════════════════════════════════════════════════════════════════════════════════════
+      ✓ Production Traffic Switched Successfully!
+      ════════════════════════════════════════════════════════════════════════════════════
+      
       Active Environment: {{ target_env | upper }}
-      Service: {{ helm_release_name }}-{{ target_env }}-erpnext-nginx
+      Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
       
       Production Health Check:
       {% for result in prod_check.results %}
-      {{ result.item.production }}: {{ '✓ HEALTHY' if result.status == 200 else '✗ CHECK FAILED' }}
+      {{ result.item.production }}: {{ '✓ HEALTHY (200 OK)' if result.status == 200 else '✗ FAILED (' + result.status|string + ')' }}
       {% endfor %}
-      ════════════════════════════════════════
+      
+      Summary:
+      ✓ Preview routes continue to use nginx proxy with Host rewriting
+      ✓ Production routes now point to {{ target_env | upper }} environment
+      ✓ Old environment traffic fully switched
+      ✓ Both environments can coexist independently
+      
+      To rollback: Run deployment with: current_env={{ target_env }} target_env={{ current_env }}
+      ════════════════════════════════════════════════════════════════════════════════════

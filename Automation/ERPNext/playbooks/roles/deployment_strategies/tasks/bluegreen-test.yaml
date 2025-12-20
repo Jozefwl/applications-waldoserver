@@ -9,22 +9,22 @@
           Release: {{ helm_release_name }}
           Namespace: {{ kubernetes_namespace }}
     
-    # # ==================== DETERMINE ENVIRONMENT ====================
-    # - name: Gather information of Green chart
-    #   kubernetes.core.helm_info:
-    #     kubeconfig: "{{ kubeconfig }}"
-    #     name: "{{ helm_release_name }}-green"
-    #     release_namespace: "{{ kubernetes_namespace }}"
-    #   register: greenchart
-    #   failed_when: false
+    # ==================== DETERMINE ENVIRONMENT ====================
+    - name: Gather information of Green chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-green"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: greenchart
+      failed_when: false
 
-    # - name: Gather information of Blue chart
-    #   kubernetes.core.helm_info:
-    #     kubeconfig: "{{ kubeconfig }}"
-    #     name: "{{ helm_release_name }}-blue"
-    #     release_namespace: "{{ kubernetes_namespace }}"
-    #   register: bluechart
-    #   failed_when: false
+    - name: Gather information of Blue chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-blue"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: bluechart
+      failed_when: false
 
     # - name: Check deployment status
     #   ansible.builtin.set_fact:
@@ -76,19 +76,131 @@
     #     wait_timeout: 10m
     #     state: present
 
+    - name: Check if production ingress exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Ingress
+        namespace: "{{ kubernetes_namespace }}"
+        name: erpnext-production
+      register: prod_ingress
+      failed_when: false
+
+    # ==================== DEPLOY/UPDATE PRODUCTION INGRESS ====================
+    - name: Apply production ingress (pointing to {{ target_env }})
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: erpnext-production
+            namespace: "{{ kubernetes_namespace }}"
+            annotations:
+              kubernetes.io/ingress.class: traefik
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
+              traefik.ingress.kubernetes.io/router.tls: "true"
+          spec:
+            ingressClassName: traefik
+            tls:
+              - secretName: erpnext-tls
+                hosts:
+                  - tenant1.erp.waldhauser.sk
+                  - tenant2.erp.waldhauser.sk
+                  - tenant3.erp.waldhauser.sk
+            rules:
+              - host: tenant1.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant2.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant3.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+      when: first_install | bool
+
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for all jobs in namespace to complete
+      block:
+      - name: Get all jobs in namespace
+        kubernetes.core.k8s_info:
+          kubeconfig: "{{ kubeconfig }}"
+          kind: Job
+          namespace: "{{ kubernetes_namespace }}"
+        register: all_jobs
+
+    - name: Wait for each job to complete
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Job
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ item.metadata.name }}"
+      loop: "{{ all_jobs.resources }}"
+      register: job_wait
+      until: 
+        - job_wait.resources[0].status.succeeded | default(0) > 0
+        # OR job_wait.resources[0].status.failed | default(0) > 0
+      retries: 100
+      delay: 7
+      loop_control:
+        label: "{{ item.metadata.name }}"
 
       # ==================== SETUP PREVIEW ====================
-    - name: Setup preview ingress
-      ansible.builtin.include_tasks: previewslot/setup-preview-ingress.yaml
+    - name: Setup preview slot
+      #ansible.builtin.include_tasks: previewslot/setup-preview-ingress.yaml
+      ansible.builtin.include_tasks: previewslot/previewtest2.yaml
+      when: not (first_install | bool)
+
+      # ==================== CREATE TENANTS ====================
+    - name: Create additional tenants
+      ansible.builtin.include_tasks: extra-tenants.yaml
+      when: first_install | bool
+
+      # ==================== SYNCHRONIZE PVCs ====================
+    - name: Synchronize PVCs and credentials
+      ansible.builtin.include_tasks: previewslot/synchronize-pvcs.yaml
+      when: not (first_install | bool)
+
+    #   # =================== PING ALL TENANTS ====================
+    # - name: HealthCheck all tenants (preview and prod)
+    #   include_tasks: healthcheck.yaml
 
     # ==================== SWITCH PRODUCTION ====================
     - name: Switch production traffic
       ansible.builtin.include_tasks: previewslot/switch-production-traffic.yaml
+      when: not (first_install | bool)
 
     # ==================== CLEANUP ====================
     - name: Cleanup old environment
       ansible.builtin.include_tasks: previewslot/cleanup-old.yaml
+      when: not (first_install | bool)
 
+    # ==================== CLEANUP ====================
+    - name: Post deployment validation
+      ansible.builtin.include_tasks: post-deployment.yaml
 
     # # ==================== CREATE/UPDATE PREVIEW INGRESS ====================
     # - name: Create Traefik middlewares for host rewriting
@@ -96,7 +208,7 @@
     #     kubeconfig: "{{ kubeconfig_path }}"
     #     state: present
     #     definition:
-    #       apiVersion: traefik.containo.us/v1alpha1
+    #       apiVersion: traefik.io/v1alpha1
     #       kind: Middleware
     #       metadata:
     #         name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
@@ -112,7 +224,7 @@
     #     kubeconfig: "{{ kubeconfig_path }}"
     #     state: present
     #     definition:
-    #       apiVersion: traefik.containo.us/v1alpha1
+    #       apiVersion: traefik.io/v1alpha1
     #       kind: IngressRoute
     #       metadata:
     #         name: "erpnext-preview-{{ item.production | replace('.', '-') }}"

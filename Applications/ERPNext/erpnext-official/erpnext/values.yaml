@@ -54,10 +54,10 @@ deploymentStrategy:
       latencyDifference: 10         # percentage (acceptable difference vs production)
 
 # Configure external database host
-# dbHost: ""
-# dbPort: 3306
-# dbRootUser: ""
-# dbRootPassword: ""
+dbHost: "mariadb.dbs.svc.cluster.local"
+dbPort: 3306
+dbRootUser: "root"
+dbRootPassword: "MySecurePassword123"
 # dbRds: false
 # dbExistingSecret: ""
 # dbExistingSecretPasswordKey: "password"
@@ -81,7 +81,7 @@ nginx:
     upstreamRealIPAddress: "127.0.0.1"
     upstreamRealIPRecursive: "off"
     upstreamRealIPHeader: "X-Forwarded-For"
-    frappeSiteNameHeader: "$host"
+    frappeSiteNameHeader: "$host" # should fallback to $host when not found
     proxyReadTimeout: "120"
     clientMaxBodySize: "50m"
   livenessProbe:
@@ -310,17 +310,17 @@ persistence:
     enabled: true
     # existingClaim: ""
     size: 8Gi
-    storageClass: "nfs"
+    storageClass: "local-path"
     accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   logs:
     # Container based log search and analytics stack recommended
     enabled: false
     # existingClaim: ""
     size: 8Gi
-    storageClass: "nfs"
+    storageClass: "local-path"
     accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
 
 # Ingress
 ingress:
@@ -516,7 +516,7 @@ mariadb:
     registry: docker.io
     tag: "latest"
   # https://github.com/bitnami/charts/tree/master/bitnami/mariadb
-  enabled: true
+  enabled: false
   auth:
     rootPassword: "changeit"
     username: "erpnext"

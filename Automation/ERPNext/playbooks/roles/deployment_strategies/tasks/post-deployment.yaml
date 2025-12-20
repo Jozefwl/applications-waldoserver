@@ -1,5 +1,17 @@
----
-- name: Post-Deployment Validation and Monitoring
+- name: Loop over production domains only
   debug:
-    msg: It is done
+    msg: "{{ item.production }}"
+  loop: "{{ preview_domain_mapping }}"
 
+# Or get all production domains as a list
+- name: Get production domains
+  set_fact:
+    production_domains: "{{ preview_domain_mapping | map(attribute='production') | list }}"
+
+# Result: ['tenant1.erp.waldhauser.sk', 'tenant2.erp.waldhauser.sk', 'tenant3.erp.waldhauser.sk']
+
+# Then loop over just those
+- name: Ping production domains
+  get_url:
+    url: "{{ item }}/api/v2/method/ping"
+  loop: "{{ production_domains }}"
