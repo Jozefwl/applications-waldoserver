@@ -14,3 +14,4 @@ spec:
   selector:
     app.kubernetes.io/name: {{ include "erpnext.name" . }}-gunicorn
     app.kubernetes.io/instance: {{ .Release.Name }}-gunicorn
+    deployment.kubernetes.io/environment: {{ .Values.environment.name }}

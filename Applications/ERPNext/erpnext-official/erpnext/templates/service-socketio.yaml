@@ -14,3 +14,4 @@ spec:
   selector:
     app.kubernetes.io/name: {{ include "erpnext.name" . }}-socketio
     app.kubernetes.io/instance: {{ .Release.Name }}-socketio
+    deployment.kubernetes.io/environment: {{ .Values.environment.name }}
