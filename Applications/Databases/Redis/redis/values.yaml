@@ -1,4 +1,4 @@
-namespace: apps
+namespace: dbs
 redis:
   appName: redis
   image: redis:latest
@@ -20,5 +20,4 @@ redis:
       cpu: 200m
   password: xxxxx
   maxMemory: 200mb
-nextcloud:
-  appName: nextcloud
+allowedNamespace: erpnext # which namespace is allowed for this redis?

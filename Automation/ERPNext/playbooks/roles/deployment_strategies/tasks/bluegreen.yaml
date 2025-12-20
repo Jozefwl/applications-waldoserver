@@ -17,10 +17,17 @@
         kubeconfig: "{{ kubeconfig }}"
         kind: Pod
         namespace: "{{ kubernetes_namespace }}"
-        label_selectors:
-          - "app.kubernetes.io/instance={{ helm_release_name }}"
-          - "app.kubernetes.io/component=erpnext"
       register: current_pods
+
+    - name: Current pods
+      debug: 
+        msg: "{{ current_pods }}" 
+
+ #   - local_action: copy content={{ current_pods }} dest=/home/jozef/currentpods.json
+
+    - name: Write environment
+      debug:
+        msg: "{{ current_pods.resources[1].metadata.labels.get('deployment.kubernetes.io/environment', 'blue') }}"
 
     - name: Determine current environment
       ansible.builtin.set_fact:
