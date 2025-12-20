@@ -1,0 +1,28 @@
+---
+# ==================== CLEANUP OLD ENVIRONMENT ====================
+- name: Confirm cleanup
+  ansible.builtin.pause:
+    prompt: "Press ENTER to remove old {{ current_env | upper }} environment, or Ctrl+C to keep it"
+  when: 
+    - current_env != 'none'
+    - not cleanup_old_env
+
+- name: Remove old environment
+  kubernetes.core.helm:
+    name: "{{ helm_release_name }}-{{ current_env }}"
+    release_namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig_path }}"
+    state: absent
+    wait: true
+  when: current_env != 'none'
+
+- name: Deployment complete
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      ✓ DEPLOYMENT COMPLETE
+      ════════════════════════════════════════
+      Active: {{ target_env | upper }}
+      Removed: {{ current_env | upper if current_env != 'none' else 'N/A' }}
+      Image: {{ new_erpnext_image_tag }}
+      ════════════════════════════════════════

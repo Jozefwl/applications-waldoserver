@@ -1,0 +1,107 @@
+- name: Display error state
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      ERROR: Both Environments Deployed
+      ════════════════════════════════════════
+      Both blue and green environments are
+      currently deployed. This is not a valid
+      state for blue-green deployment.
+      ════════════════════════════════════════
+
+- name: Show cleanup options
+  ansible.builtin.pause:
+    prompt: |
+      ════════════════════════════════════════
+      Cleanup Options
+      ════════════════════════════════════════
+
+      WARNING:
+      Removing the active production environment
+      WILL cause downtime.
+
+      What would you like to do?
+
+      1) Remove BLUE environment
+      2) Remove GREEN environment
+      3) Cancel (exit without changes)
+
+      Enter your choice (1-3):
+  register: cleanup_choice
+
+- name: Validate choice
+  ansible.builtin.fail:
+    msg: "Invalid choice. Please enter 1, 2, or 3."
+  when: cleanup_choice.user_input not in ['1', '2', '3']
+
+# ==================== REMOVE BLUE ====================
+- block:
+    - name: Confirm blue removal
+      ansible.builtin.pause:
+        prompt: |
+          You are about to REMOVE the BLUE environment
+
+          Helm release: {{ helm_release_name }}-blue
+
+          This may impact production traffic.
+
+          Press ENTER to continue, or Ctrl+C to abort
+      when: not force_deployment
+
+    - name: Remove blue environment
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-blue"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig_local }}"
+        state: absent
+        wait: true
+
+    - name: Blue removed
+      ansible.builtin.debug:
+        msg: |
+          ════════════════════════════════════════
+          ✓ Blue environment removed
+          You can now run your deployment again
+          ════════════════════════════════════════
+  when: cleanup_choice.user_input == '1'
+
+# ==================== REMOVE GREEN ====================
+- block:
+    - name: Confirm green removal
+      ansible.builtin.pause:
+        prompt: |
+          You are about to REMOVE the GREEN environment
+
+          Helm release: {{ helm_release_name }}-green
+
+          This may impact production traffic.
+
+          Press ENTER to continue, or Ctrl+C to abort
+      when: not force_deployment
+
+    - name: Remove green environment
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-green"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig_local }}"
+        state: absent
+        wait: true
+
+    - name: Green removed
+      ansible.builtin.debug:
+        msg: |
+          ════════════════════════════════════════
+          ✓ Green environment removed
+          You can now run your deployment again
+          ════════════════════════════════════════
+  when: cleanup_choice.user_input == '2'
+
+# ==================== CANCEL ====================
+- name: Operation cancelled
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      Operation cancelled
+      Both environments still deployed
+      ════════════════════════════════════════
+  when: cleanup_choice.user_input == '3'
