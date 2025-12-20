@@ -1,0 +1,260 @@
+---
+- name: Blue/Green Strategy
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          Starting Blue/Green Deployment
+          Image tag: {{ new_erpnext_image_tag }}
+          Release: {{ helm_release_name }}
+          Namespace: {{ kubernetes_namespace }}
+    
+    # # ==================== DETERMINE ENVIRONMENT ====================
+    # - name: Gather information of Green chart
+    #   kubernetes.core.helm_info:
+    #     kubeconfig: "{{ kubeconfig }}"
+    #     name: "{{ helm_release_name }}-green"
+    #     release_namespace: "{{ kubernetes_namespace }}"
+    #   register: greenchart
+    #   failed_when: false
+
+    # - name: Gather information of Blue chart
+    #   kubernetes.core.helm_info:
+    #     kubeconfig: "{{ kubeconfig }}"
+    #     name: "{{ helm_release_name }}-blue"
+    #     release_namespace: "{{ kubernetes_namespace }}"
+    #   register: bluechart
+    #   failed_when: false
+
+    # - name: Check deployment status
+    #   ansible.builtin.set_fact:
+    #     green_deployed: "{{ greenchart.status is defined and greenchart.status.status == 'deployed' }}"
+    #     blue_deployed: "{{ bluechart.status is defined and bluechart.status.status == 'deployed' }}"
+    
+    # - name: Handle both environments deployed
+    #   block:
+    #     - name: Both environments deployed - run cleanup
+    #       ansible.builtin.include_tasks: previewslot/cleanup-slots.yaml
+          
+    #     - name: Exit after cleanup
+    #       ansible.builtin.meta: end_play
+    #   when: green_deployed and blue_deployed
+
+    # - name: Determine current and target environment
+    #   ansible.builtin.set_fact:
+    #     current_env: "{{ 'green' if green_deployed else 'blue' if blue_deployed else 'none' }}"
+    #     target_env: "{{ 'blue' if green_deployed else 'green' }}"
+    #     active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
+    #     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
+
+    # - name: Display environment transition
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       Blue-Green Deployment Status
+    #       ===========================================
+    #       Please look at your (Free/Open)Lens to see progress...
+    #       Current Active: {{ current_env }} ({{ active_release }})
+    #       Deploying To: {{ target_env }} ({{ target_release }})
+    #       ===========================================
+
+    # # ==================== DEPLOY NEW ENVIRONMENT ====================
+    # - name: Deploy {{ target_env }} environment
+    #   kubernetes.core.helm:
+    #     name: "{{ target_release }}"
+    #     chart_ref: "{{ helm_chart_path }}"
+    #     release_namespace: "{{ kubernetes_namespace }}"
+    #     kubeconfig: "{{ kubeconfig }}"
+    #     values_files:
+    #       - "{{ helm_chart_path }}/values.yaml"
+    #     values:
+    #       environment:
+    #         name: "{{ target_env }}"
+    #       ingress:
+    #         enabled: false  # Disable ingress in helm, we manage it externally
+    #     wait: true
+    #     wait_timeout: 10m
+    #     state: present
+
+
+      # ==================== SETUP PREVIEW ====================
+    - name: Setup preview ingress
+      ansible.builtin.include_tasks: previewslot/setup-preview-ingress.yaml
+
+    # ==================== SWITCH PRODUCTION ====================
+    - name: Switch production traffic
+      ansible.builtin.include_tasks: previewslot/switch-production-traffic.yaml
+
+    # ==================== CLEANUP ====================
+    - name: Cleanup old environment
+      ansible.builtin.include_tasks: previewslot/cleanup-old.yaml
+
+
+    # # ==================== CREATE/UPDATE PREVIEW INGRESS ====================
+    # - name: Create Traefik middlewares for host rewriting
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: traefik.containo.us/v1alpha1
+    #       kind: Middleware
+    #       metadata:
+    #         name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+    #         namespace: "{{ kubernetes_namespace }}"
+    #       spec:
+    #         headers:
+    #           customRequestHeaders:
+    #             Host: "{{ item.production }}"
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Create preview IngressRoutes with host rewriting
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: traefik.containo.us/v1alpha1
+    #       kind: IngressRoute
+    #       metadata:
+    #         name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
+    #         namespace: "{{ kubernetes_namespace }}"
+    #       spec:
+    #         entryPoints:
+    #           - websecure
+    #         routes:
+    #           - match: "Host(`{{ item.preview }}`)"
+    #             kind: Rule
+    #             services:
+    #               - name: "{{ helm_release_name }}-{{ target_env }}"
+    #                 port: 8080
+    #             middlewares:
+    #               - name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+    #                 namespace: "{{ kubernetes_namespace }}"
+    #         tls:
+    #           secretName: "{{ preview_tls_secret_name }}"
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Display preview URLs
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ════════════════════════════════════════
+    #       ✓ Preview Ready!
+    #       ════════════════════════════════════════
+    #       {% for mapping in preview_domain_mapping %}
+    #       {{ mapping.preview }} → {{ mapping.production }}
+    #       {% endfor %}
+    #       ════════════════════════════════════════
+
+    # - name: Run health checks on preview
+    #   ansible.builtin.uri:
+    #     url: "https://{{ item.preview }}/api/method/frappe.ping"
+    #     validate_certs: yes
+    #     status_code: 200
+    #     headers:
+    #       Host: "{{ item.production }}"
+    #   register: health_check
+    #   until: health_check.status == 200
+    #   retries: "{{ health_check_retries }}"
+    #   delay: 5
+    #   ignore_errors: true
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Display preview URLs
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       Preview environment is ready!
+    #       Test at: https://preview.tenant1.erp.waldhauser.sk
+    #       ===========================================
+          
+    # - name: Wait for manual approval to switch traffic
+    #   ansible.builtin.pause:
+    #     prompt: |
+          
+    #       Press ENTER to switch production traffic to {{ target_env }} environment
+    #       Or Ctrl+C then 'A' to abort
+
+    # # ==================== SWITCH PRODUCTION TRAFFIC ====================
+    # - name: Update production ingress to {{ target_env }}
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path  }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: networking.k8s.io/v1
+    #       kind: Ingress
+    #       metadata:
+    #         name: erpnext-production
+    #         namespace: "{{ kubernetes_namespace }}"
+    #         annotations:
+    #           traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    #           traefik.ingress.kubernetes.io/router.tls: "true"
+    #           cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    #       spec:
+    #         ingressClassName: traefik
+    #         tls:
+    #         - secretName: erpnext-tls
+    #           hosts:
+    #           - tenant1.erp.waldhauser.sk
+    #           - tenant2.erp.waldhauser.sk
+    #           - tenant3.erp.waldhauser.sk
+    #         rules:
+    #         - host: tenant1.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+    #         - host: tenant2.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+    #         - host: tenant3.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+
+    # - name: Production traffic switched successfully
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       SUCCESS! Production traffic now points to {{ target_env }}
+    #       ===========================================
+
+    # # ==================== CLEANUP OLD ENVIRONMENT ====================
+    # - name: Wait before cleanup
+    #   ansible.builtin.pause:
+    #     prompt: "Press ENTER to remove old {{ current_env }} environment, or Ctrl+C to keep it"
+    #   when: current_env != 'none'
+
+    # - name: Remove old {{ current_env }} environment
+    #   kubernetes.core.helm:
+    #     name: "{{ active_release }}"
+    #     release_namespace: "{{ kubernetes_namespace }}"
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: absent
+    #     wait: true
+    #   when: current_env != 'none'
+
+    # - name: Deployment complete
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       Blue-Green Deployment Complete!
+    #       Active environment: {{ target_env }}
+    #       Old environment removed: {{ current_env }}
+    #       ===========================================

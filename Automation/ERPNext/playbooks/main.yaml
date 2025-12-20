@@ -62,6 +62,10 @@
       ansible.builtin.set_fact:
         kubeconfig: "{{ playbook_dir }}/kubeconfig.yaml"
 
+    - name: Set kubeconfig path for localhost usage # DIRTY !!! FIXMEBRO
+      ansible.builtin.set_fact:
+        kubeconfig_local: "{{ playbook_dir }}/kubeconfig.yaml"
+
     - name: Set kubeconfig permissions
       ansible.builtin.file:
         path: "{{ playbook_dir }}/kubeconfig.yaml"
@@ -96,7 +100,7 @@
       when: deployment_strategy == "ramped"
 
     - name: Execute blue-green strategy
-      include_tasks: roles/deployment_strategies/tasks/bluegreen.yaml
+      include_tasks: roles/deployment_strategies/tasks/bluegreen-test.yaml
       when: deployment_strategy == "bluegreen"
 
     - name: Execute canary strategy

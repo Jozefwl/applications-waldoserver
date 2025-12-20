@@ -1,0 +1,93 @@
+---
+# ==================== SWITCH PRODUCTION TRAFFIC ====================
+
+- name: Delete old production IngressRoutes (if any)
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: absent
+    api_version: traefik.io/v1alpha1
+    kind: IngressRoute
+    name: "erpnext-production-{{ item.production | replace('.', '-') }}"
+    namespace: "{{ kubernetes_namespace }}"
+  loop: "{{ preview_domain_mapping }}"
+  ignore_errors: yes
+
+- name: Confirm traffic switch
+  ansible.builtin.pause:
+    prompt: |
+      
+      ════════════════════════════════════════
+      Ready to Switch Production Traffic
+      ════════════════════════════════════════
+      From: {{ current_env | upper if current_env != 'none' else 'NONE' }}
+      To:   {{ target_env | upper }}
+      Service: {{ helm_release_name }}-{{ target_env }}-erpnext-nginx
+      ════════════════════════════════════════
+      
+      Press ENTER to switch production traffic
+      Or Ctrl+C then 'A' to abort
+  when: not force_switch
+
+- name: Create/Update production Ingress for each tenant
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: "erpnext-production-{{ item.production | replace('.', '-') }}"
+        namespace: "{{ kubernetes_namespace }}"
+        annotations:
+          kubernetes.io/ingress.class: "traefik"
+          traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+          cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      spec:
+        ingressClassName: traefik
+        tls:
+          - secretName: "{{ tls_secret_name }}"
+            hosts:
+              - "{{ item.production }}"
+        rules:
+          - host: "{{ item.production }}"
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: "{{ helm_release_name }}-{{ target_env }}-erpnext-nginx"
+                      port:
+                        number: 8080
+  loop: "{{ preview_domain_mapping }}"
+
+- name: Wait for ingress to be ready
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Verify production endpoints
+  ansible.builtin.uri:
+    url: "https://{{ item.production }}/api/method/frappe.ping"
+    validate_certs: yes
+    status_code: 200
+    timeout: 10
+  register: prod_check
+  retries: 10
+  delay: 3
+  ignore_errors: yes
+  loop: "{{ preview_domain_mapping }}"
+
+- name: Display production switch results
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      ✓ Production Traffic Switched!
+      ════════════════════════════════════════
+      Active Environment: {{ target_env | upper }}
+      Service: {{ helm_release_name }}-{{ target_env }}-erpnext-nginx
+      
+      Production Health Check:
+      {% for result in prod_check.results %}
+      {{ result.item.production }}: {{ '✓ HEALTHY' if result.status == 200 else '✗ CHECK FAILED' }}
+      {% endfor %}
+      ════════════════════════════════════════
