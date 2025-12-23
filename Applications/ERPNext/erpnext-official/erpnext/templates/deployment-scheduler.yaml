@@ -6,6 +6,12 @@ metadata:
     {{- include "erpnext.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.worker.scheduler.replicaCount }}
+  # ------------ DEPLOYMENT STRATEGY -------------
+  {{- if .Values.deploymentStrategy.type }}
+  strategy:
+    {{- toYaml .Values.deploymentStrategy.type | nindent 4 }}
+  {{- end }}
+  # ----------------------------------------------
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "erpnext.name" . }}-scheduler

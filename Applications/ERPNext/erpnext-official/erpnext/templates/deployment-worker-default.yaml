@@ -8,6 +8,12 @@ spec:
   {{- if not .Values.worker.default.autoscaling.enabled }}
   replicas: {{ .Values.worker.default.replicaCount }}
   {{- end }}
+  # ------------ DEPLOYMENT STRATEGY -------------
+  {{- if .Values.deploymentStrategy.type }}
+  strategy:
+    {{- toYaml .Values.deploymentStrategy.type | nindent 4 }}
+  {{- end }}
+  # ----------------------------------------------
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "erpnext.name" . }}-worker-d
