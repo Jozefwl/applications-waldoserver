@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: create-tenant2-site
+  name: create-tenant1-site
   namespace: erpnext
 spec:
   backoffLimit: 3
@@ -23,16 +23,16 @@ spec:
           if bench --site tenant2.erp.waldhauser.sk list-apps >/dev/null 2>&1; then
             exit 0
           fi
-          bench new-site tenant2.erp.waldhauser.sk \
-            --db-name tenant2_db \
+          bench new-site tenant1.erp.waldhauser.sk \
+            --db-name tenant1_db \
             --db-type mariadb \
             --db-host mariadb-headless.dbs.svc.cluster.local \
             --db-port 3306 \
             --db-root-username root \
             --db-root-password MySecurePassword123 \
-            --admin-password ChangeMe2@123 \
+            --admin-password ChangeMe@123 \
             --mariadb-user-host-login-scope='%'
-          bench --site tenant2.erp.waldhauser.sk install-app erpnext
+          bench --site tenant1.erp.waldhauser.sk install-app erpnext
         volumeMounts:
         - name: sites
           mountPath: /home/frappe/frappe-bench/sites
