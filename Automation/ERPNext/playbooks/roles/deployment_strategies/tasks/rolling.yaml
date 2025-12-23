@@ -18,13 +18,18 @@
       ansible.builtin.set_fact:
         existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
+    - name: Define the helm values patch
+      ansible.builtin.set_fact:
+        helm_patch:
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          deploymentStrategy:
+            type: 
+              type: RollingUpdate  # This maps to .Values.deploymentStrategy.type
+
     - name: Merge rolling strategy with existing values
       ansible.builtin.set_fact:
-        helm_values: "{{ existing_helm_values | combine({'deploymentStrategy': {'type': 'rolling', 'parameters': {'maxUnavailable': 0, 'maxSurge': 1}}}) }}"
-
-    # - name: Show merged values.yaml  
-    #   debug:
-    #     msg: Helm values= "{{ helm_values }}"
+        helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
@@ -33,9 +38,6 @@
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
         values: "{{ helm_values }}"
-        set_values:
-          - value: "image.tag={{ new_erpnext_image_tag }}"
-            value_type: string
         state: present
         wait: true
         wait_timeout: 600s
@@ -46,14 +48,14 @@
     #   debug:
     #     msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
 
-    - name: Read helm values file
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
+    # - name: Read helm values file
+    #   ansible.builtin.slurp:
+    #     src: "{{ helm_chart_path }}/values.yaml"
+    #   register: helmchart_values_raw
 
-    - name: Parse values into a fact
-      ansible.builtin.set_fact:
-        helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    # - name: Parse values into a fact
+    #   ansible.builtin.set_fact:
+    #     helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
     # - name: Display debug message
     #   debug:
@@ -127,7 +129,3 @@
       fail:
         msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."
       when: helm_release is failed
-    
-    - name: Display success message
-      debug:
-        msg: "Deployment successful, URL of tenant is https://{{ helmchart_values.ingress.hosts[0].host }}"
