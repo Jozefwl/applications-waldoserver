@@ -16,61 +16,47 @@
         src: "{{ helm_chart_path }}/values.yaml"
       register: helmchart_values_raw
 
-    - name: Parse existing values
+    - name: Parse existing values into a fact
       ansible.builtin.set_fact:
         existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
-    - name: Merge ramped strategy into existing values
+    - name: Define the helm values patch
       ansible.builtin.set_fact:
-        helm_values: >-
-          {{
-            existing_helm_values
-            | combine({
-                'deploymentStrategy': {
-                  'type': 'ramped',
-                  'parameters': {
-                    'maxUnavailable': 1,
-                    'maxSurge': 0
-                  }
-                }
-              }, recursive=True)
-          }}
+        helm_patch:
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          deploymentStrategy:
+            type: 
+              type: RollingUpdate  # This maps to .Values.deploymentStrategy.type
+              rollingUpdate:
+                maxUnavailable: 1
+                maxSurge: 2
 
-    - name: Deploy/upgrade ERPNext with RAMPED strategy
+    - name: Merge ramped strategy with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
+
+    - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
         kubeconfig_path: "{{ kubeconfig }}"
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
         values: "{{ helm_values }}"
-        set_values:
-          - value: "image.tag={{ new_erpnext_image_tag }}"
-            value_type: string
         state: present
         wait: true
         wait_timeout: 600s
-        atomic: true
+        atomic: true  # Automatically rolls back on failure
       register: helm_release
 
-    - name: Re-read values.yaml (updated)
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse merged values back into fact
-      ansible.builtin.set_fact:
-        helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
-
-    # -----------------------------------------------------------
-    # JOB WAITING LOGIC
-    # -----------------------------------------------------------
-
-    - name: Get all jobs in namespace
-      kubernetes.core.k8s_info:
-        kubeconfig: "{{ kubeconfig }}"
-        kind: Job
-        namespace: "{{ kubernetes_namespace }}"
-      register: all_jobs
+    - name: Wait for all jobs in namespace to complete
+      block:
+      - name: Get all jobs in namespace
+        kubernetes.core.k8s_info:
+          kubeconfig: "{{ kubeconfig }}"
+          kind: Job
+          namespace: "{{ kubernetes_namespace }}"
+        register: all_jobs
 
     - name: Wait for each job to complete
       kubernetes.core.k8s_info:
@@ -80,21 +66,49 @@
         name: "{{ item.metadata.name }}"
       loop: "{{ all_jobs.resources }}"
       register: job_wait
-      until:
+      until: 
         - job_wait.resources[0].status.succeeded | default(0) > 0
+        # OR job_wait.resources[0].status.failed | default(0) > 0
       retries: 100
       delay: 7
       loop_control:
         label: "{{ item.metadata.name }}"
 
-    # -----------------------------------------------------------
-    # ROLLOUT CHECKING
-    # -----------------------------------------------------------
+    - name: Ping first tenant until it's available
+      ansible.builtin.shell: |
+        curl -s -o /dev/null -w "%{http_code}" "https://{{ helmchart_values.ingress.hosts[0].host }}/"
+      register: tenant_check
+      retries: 100
+      delay: 5
+      until: tenant_check.stdout | int < 400
+      when: helm_release is succeeded
 
-    - name: Monitor ramped rollout (waiting for all replicas updated & ready)
-      kubernetes.core.k8s_info:
+  rescue:
+    - name: Confirm rollback deployment
+      pause:
+        prompt: |
+          -------------- ROLLBACK AFTER HELM FAILURE --------------
+          Press enter to continue or Ctrl+C to abort
+      when: helm_release is failed
+
+    - name: Manual rollback if atomic failed
+      kubernetes.core.helm:
         kubeconfig: "{{ kubeconfig }}"
-        kind: Deployment
-        namespace: "{{ kubernetes_namespace }}"
-        name: "{{ helm_release_name }}-nginx"
-      register: deployme
+        name: "{{ helm_release_name }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        state: present
+      register: rollback_result
+      ignore_errors: true
+      when: helm_release is failed
+
+    - name: Get rollback status
+      command: "helm rollback {{ helm_release_name }} 0 -n {{ kubernetes_namespace }}"
+      register: helm_rollback
+      ignore_errors: true
+      when: rollback_result is failed
+
+    - name: Display fail message
+      fail:
+        msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."
+      when: helm_release is failed

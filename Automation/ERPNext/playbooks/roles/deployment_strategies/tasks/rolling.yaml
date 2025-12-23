@@ -1,9 +1,10 @@
 ---
 - name: Rolling Update Strategy
   block:
-    - name: Display image info
+    - name: Display strategy info
       debug:
         msg: |
+          ROLLING STRATEGY deployment
           image tag: {{ new_erpnext_image_tag }}
           release name: {{ helm_release_name }}
           namespace: {{ kubernetes_namespace }}
