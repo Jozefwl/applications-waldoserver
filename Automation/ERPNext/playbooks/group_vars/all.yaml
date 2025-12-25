@@ -4,7 +4,7 @@ kubernetes_namespace: erpnext
 helm_release_name: frappe-bench
 helm_chart_path: "{{ playbook_dir }}/../../../Applications/ERPNext/erpnext-official/erpnext"
 deployment_tag: production
-new_erpnext_image_tag: v15.87.2
+new_erpnext_image_tag: v15.87.1
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 first_install: false
 
@@ -14,11 +14,11 @@ first_install: false
 
 # DEBUG VARS !!! DONT USE ============================================
 
-target_env: blue
-#     active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
-#     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
-active_release: "{{ helm_release_name + '-green' }}"
-target_release: "{{ helm_release_name + '-blue' }}"
+# target_env: blue
+# #     active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
+# #     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
+# active_release: "{{ helm_release_name + '-green' }}"
+# target_release: "{{ helm_release_name + '-blue' }}"
 
 # END OF DEBUG VARS ==================================================
 

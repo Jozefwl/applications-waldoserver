@@ -7,11 +7,24 @@
     - current_env != 'none'
     - not cleanup_old_env
 
+- name: Remove sync jobs that bind PVCs
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    namespace: "{{ kubernetes_namespace }}"
+    state: absent
+    kind: Job
+    name: "{{ item }}"
+  loop:
+    - "sync-green-to-blue"
+    - "sync-blue-to-green"
+  ignore_errors: true
+  when: current_env != 'none'
+
 - name: Remove old environment
   kubernetes.core.helm:
     name: "{{ helm_release_name }}-{{ current_env }}"
     release_namespace: "{{ kubernetes_namespace }}"
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig }}"
     state: absent
     wait: true
   when: current_env != 'none'

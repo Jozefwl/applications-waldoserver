@@ -1,0 +1,561 @@
+---
+# Blue-Green Deployment Strategy
+# Deploys a complete new version alongside the running version
+# Then switches traffic between versions
+
+- name: Blue-Green Strategy
+  block:
+
+  - name: Display strategy info
+    debug:
+      msg: |
+        Deploying with BLUE-GREEN strategy
+
+        Current Release: {{ helm_release_name }}
+        New Environment: {{ target_environment | default('green') }}
+        Image Tag: {{ new_erpnext_image_tag }}
+
+  - name: Confirm blue-green deployment
+    pause:
+      prompt: |
+        This will deploy a new {{ target_environment | default('green') }} environment.
+        Current active environment will remain running until traffic is switched.
+        Press enter to continue or Ctrl+C to abort
+    when: not force_deployment | default(false) | bool
+
+  # ============================================
+  # PHASE 1: DETERMINE ACTIVE/INACTIVE VERSIONS
+  # ============================================
+
+  - name: Detect current active environment
+    block:
+
+    - name: Get current service selectors
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Service
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ helm_release_name }}"
+      register: current_service
+
+    - name: Extract current environment from service selector
+      set_fact:
+        current_env: "{{ current_service.resources[0].spec.selector['deployment.kubernetes.io/environment'] | default('blue') }}"
+
+    - name: Set target environment (opposite of current)
+      set_fact:
+        target_environment: "{{ 'green' if current_env == 'blue' else 'blue' }}"
+      when: target_environment is not defined
+
+    - name: Display version switching plan
+      debug:
+        msg: |
+          Current Active Environment: {{ current_env }}
+          Target Environment: {{ target_environment }}
+          Current Release: {{ helm_release_name }}
+          New Release: {{ helm_release_name }}-{{ target_environment }}
+
+  # ============================================
+  # PHASE 2: DEPLOY NEW ENVIRONMENT
+  # ============================================
+
+  - name: Deploy new environment
+    block:
+
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse existing values into a fact
+      set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    - name: Prepare blue-green values
+      set_fact:
+        bluegreen_values: "{{ existing_helm_values | combine({
+          'environment': {
+            'name': target_environment
+          },
+          'mariadb': {
+            'enabled': false
+          },
+          'redis-cache': {
+            'enabled': false,
+            'host': 'redis://{{ helm_release_name }}-redis-cache-master:6379'
+          },
+          'redis-queue': {
+            'enabled': false,
+            'host': 'redis://{{ helm_release_name }}-redis-queue-master:6379'
+          },
+          'persistence': {
+            'worker': {
+              'existingClaim': helm_release_name
+            }
+          }
+        }, recursive=True) }}"
+
+    - name: Deploy/upgrade new environment
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-{{ target_environment }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+        values: "{{ bluegreen_values }}"
+        set_values:
+          - value: "image.tag={{ new_erpnext_image_tag }}"
+            value_type: string
+          - value: "environment.name={{ target_environment }}"
+            value_type: string
+        state: present
+        wait: true
+        wait_timeout: 600s
+        atomic: true
+      register: helm_release_new
+
+    - name: Display deployment status
+      debug:
+        msg: |
+          New environment deployed successfully
+          Release: {{ helm_release_name }}-{{ target_environment }}
+          Status: {{ helm_release_new.status }}
+
+  # ============================================
+  # PHASE 3: WAIT FOR PODS TO BE READY
+  # ============================================
+
+  - name: Wait for new environment pods
+    block:
+
+    - name: Wait for nginx pods to be ready
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ kubernetes_namespace }}"
+        label_selectors:
+          - "app.kubernetes.io/instance={{ helm_release_name }}-{{ target_environment }}"
+          - "app.kubernetes.io/name~=-nginx"
+      register: nginx_pods
+      until: nginx_pods.resources | length > 0 and (nginx_pods.resources | map(attribute='status.phase') | unique | list == ['Running'])
+      retries: 120
+      delay: 5
+
+    - name: Wait for gunicorn pods to be ready
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ kubernetes_namespace }}"
+        label_selectors:
+          - "app.kubernetes.io/instance={{ helm_release_name }}-{{ target_environment }}"
+          - "app.kubernetes.io/name~=-worker-gunicorn"
+      register: gunicorn_pods
+      until: gunicorn_pods.resources | length > 0 and (gunicorn_pods.resources | map(attribute='status.phase') | unique | list == ['Running'])
+      retries: 120
+      delay: 5
+
+    - name: Wait for socketio pods to be ready
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ kubernetes_namespace }}"
+        label_selectors:
+          - "app.kubernetes.io/instance={{ helm_release_name }}-{{ target_environment }}"
+          - "app.kubernetes.io/name~=-socketio"
+      register: socketio_pods
+      until: socketio_pods.resources | length > 0 and (socketio_pods.resources | map(attribute='status.phase') | unique | list == ['Running'])
+      retries: 120
+      delay: 5
+
+    - name: Display pod status
+      debug:
+        msg: |
+          New environment pods are ready:
+          - Nginx: {{ nginx_pods.resources | length }} pods Running
+          - Gunicorn: {{ gunicorn_pods.resources | length }} pods Running
+          - SocketIO: {{ socketio_pods.resources | length }} pods Running
+
+  # ============================================
+  # PHASE 4: RUN CONFIGURE JOB
+  # ============================================
+
+  - name: Run configure job for new environment
+    block:
+
+    - name: Wait for configure job to complete
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Job
+        namespace: "{{ kubernetes_namespace }}"
+        label_selectors:
+          - "app.kubernetes.io/instance={{ helm_release_name }}-{{ target_environment }}"
+          - "app.kubernetes.io/name~=-conf-bench"
+      register: configure_job
+      until: configure_job.resources | length > 0 and (configure_job.resources[0].status.succeeded | default(0) > 0 or configure_job.resources[0].status.failed | default(0) > 0)
+      retries: 100
+      delay: 7
+
+    - name: Check configure job success
+      fail:
+        msg: "Configure job failed for {{ target_environment }} environment"
+      when: configure_job.resources[0].status.failed | default(0) > 0
+
+    - name: Display configure job status
+      debug:
+        msg: |
+          Configure job completed successfully
+          Job: {{ configure_job.resources[0].metadata.name }}
+          Completion time: {{ configure_job.resources[0].status.completionTime }}
+
+  # ============================================
+  # PHASE 5: HEALTH CHECKS
+  # ============================================
+
+  - name: Perform health checks
+    block:
+
+    - name: Check pods for errors in logs
+      kubernetes.core.k8s_exec:
+        kubeconfig: "{{ kubeconfig }}"
+        namespace: "{{ kubernetes_namespace }}"
+        pod: "{{ item.metadata.name }}"
+        command: "tail -50 -f /home/frappe/frappe-bench/logs/frappe.log 2>/dev/null || echo 'No errors'"
+      register: pod_logs
+      loop: "{{ nginx_pods.resources[:1] }}"
+      ignore_errors: true
+
+    - name: Test service connectivity
+      kubernetes.core.k8s_exec:
+        kubeconfig: "{{ kubeconfig }}"
+        namespace: "{{ kubernetes_namespace }}"
+        pod: "{{ nginx_pods.resources[0].metadata.name }}"
+        command: "curl -s http://localhost:8080 | head -5"
+      register: connectivity_test
+      ignore_errors: true
+
+    - name: Display health check results
+      debug:
+        msg: |
+          Health check results:
+          - Pod logs: Retrieved
+          - Service connectivity: {{ 'OK' if connectivity_test.rc == 0 else 'FAILED' }}
+
+  # ============================================
+  # PHASE 6: SWITCH TRAFFIC
+  # ============================================
+
+  - name: Switch traffic to new environment
+    block:
+
+    - name: Confirm traffic switch
+      pause:
+        prompt: |
+          Ready to switch traffic from {{ current_env }} to {{ target_environment }}?
+          Press enter to continue or Ctrl+C to abort
+      when: not force_switch | default(false) | bool
+
+    - name: Update service selector to new environment
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Service
+        api_version: v1
+        name: "{{ helm_release_name }}"
+        namespace: "{{ kubernetes_namespace }}"
+        definition:
+          spec:
+            selector:
+              app.kubernetes.io/instance: "{{ helm_release_name }}-{{ target_environment }}"
+              deployment.kubernetes.io/environment: "{{ target_environment }}"
+        state: present
+      register: service_update
+
+    - name: Update socketio service selector
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Service
+        api_version: v1
+        name: "{{ helm_release_name }}-socketio"
+        namespace: "{{ kubernetes_namespace }}"
+        definition:
+          spec:
+            selector:
+              app.kubernetes.io/instance: "{{ helm_release_name }}-{{ target_environment }}-socketio"
+              deployment.kubernetes.io/environment: "{{ target_environment }}"
+        state: present
+      register: socketio_service_update
+      ignore_errors: true
+
+    - name: Display traffic switch result
+      debug:
+        msg: |
+          Traffic switched successfully
+          Main service: {{ service_update.result.status | default('Updated') }}
+          SocketIO service: {{ socketio_service_update.result.status | default('Updated') }}
+          New active environment: {{ target_environment }}
+
+  # ============================================
+  # PHASE 7: VERIFY TRAFFIC
+  # ============================================
+
+  - name: Verify new environment is handling traffic
+    block:
+
+    - name: Test application health through ingress
+      ansible.builtin.shell: |
+        curl -s -o /dev/null -w "%{http_code}" "https://{{ existing_helm_values.ingress.hosts[0].host }}/api/method/frappe.ping"
+      register: health_check
+      retries: 20
+      delay: 5
+      until: health_check.stdout | int < 400
+
+    - name: Display traffic verification
+      debug:
+        msg: |
+          Traffic verification successful
+          HTTP Response: {{ health_check.stdout }}
+          Active environment is {{ target_environment }}
+
+  # ============================================
+  # PHASE 8: CLEANUP (OPTIONAL)
+  # ============================================
+
+  - name: Offer cleanup of old environment
+    block:
+
+    - name: Confirm old environment cleanup
+      pause:
+        prompt: |
+          Delete old {{ current_env }} environment ({{ helm_release_name }}-{{ current_env }})?
+          Keep for 24h for quick rollback.
+          Press enter to delete or Ctrl+C to keep
+      when: not cleanup_old_env | default(false) | bool
+      register: cleanup_prompt
+
+    - name: Delete old environment
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-{{ current_env }}"
+        namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+      when: cleanup_old_env | default(false) | bool or (cleanup_prompt.skipped is not defined and cleanup_prompt.user_input | length == 0)
+      register: helm_uninstall
+
+    - name: Display cleanup result
+      debug:
+        msg: |
+          Old environment cleanup completed
+          Release: {{ helm_release_name }}-{{ current_env }}
+          Status: {% if helm_uninstall is changed %}Deleted{% else %}Kept{% endif %}
+
+  rescue:
+
+  - name: Handle deployment failure
+    block:
+
+    - name: Confirm rollback after failure
+      pause:
+        prompt: |
+          -------------- BLUE-GREEN DEPLOYMENT FAILED --------------
+          Rollback traffic to {{ current_env }} environment?
+          Press enter to continue or Ctrl+C to abort
+      when: not force_rollback | default(false) | bool
+
+    - name: Rollback service selectors
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Service
+        api_version: v1
+        name: "{{ item }}"
+        namespace: "{{ kubernetes_namespace }}"
+        definition:
+          spec:
+            selector:
+              app.kubernetes.io/instance: "{{ helm_release_name }}-{{ current_env }}"
+              deployment.kubernetes.io/environment: "{{ current_env }}"
+        state: present
+      loop:
+        - "{{ helm_release_name }}"
+        - "{{ helm_release_name }}-socketio"
+      ignore_errors: true
+
+    - name: Display rollback status
+      debug:
+        msg: |
+          Rollback completed
+          Traffic reverted to: {{ current_env }}
+          Failed release: {{ helm_release_name }}-{{ target_environment }}
+
+    - name: Pause for manual inspection
+      pause:
+        prompt: |
+          Deployment failed. Keep {{ helm_release_name }}-{{ target_environment }} for debugging?
+          Press enter to keep or Ctrl+C to continue
+
+
+  # # ==================== CREATE/UPDATE PREVIEW INGRESS ====================
+    # - name: Create Traefik middlewares for host rewriting
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: traefik.io/v1alpha1
+    #       kind: Middleware
+    #       metadata:
+    #         name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+    #         namespace: "{{ kubernetes_namespace }}"
+    #       spec:
+    #         headers:
+    #           customRequestHeaders:
+    #             Host: "{{ item.production }}"
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Create preview IngressRoutes with host rewriting
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: traefik.io/v1alpha1
+    #       kind: IngressRoute
+    #       metadata:
+    #         name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
+    #         namespace: "{{ kubernetes_namespace }}"
+    #       spec:
+    #         entryPoints:
+    #           - websecure
+    #         routes:
+    #           - match: "Host(`{{ item.preview }}`)"
+    #             kind: Rule
+    #             services:
+    #               - name: "{{ helm_release_name }}-{{ target_env }}"
+    #                 port: 8080
+    #             middlewares:
+    #               - name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+    #                 namespace: "{{ kubernetes_namespace }}"
+    #         tls:
+    #           secretName: "{{ preview_tls_secret_name }}"
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Display preview URLs
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ════════════════════════════════════════
+    #       ✓ Preview Ready!
+    #       ════════════════════════════════════════
+    #       {% for mapping in preview_domain_mapping %}
+    #       {{ mapping.preview }} → {{ mapping.production }}
+    #       {% endfor %}
+    #       ════════════════════════════════════════
+
+    # - name: Run health checks on preview
+    #   ansible.builtin.uri:
+    #     url: "https://{{ item.preview }}/api/method/frappe.ping"
+    #     validate_certs: yes
+    #     status_code: 200
+    #     headers:
+    #       Host: "{{ item.production }}"
+    #   register: health_check
+    #   until: health_check.status == 200
+    #   retries: "{{ health_check_retries }}"
+    #   delay: 5
+    #   ignore_errors: true
+    #   loop: "{{ preview_domain_mapping }}"
+
+    # - name: Display preview URLs
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       Preview environment is ready!
+    #       Test at: https://preview.tenant1.erp.waldhauser.sk
+    #       ===========================================
+          
+    # - name: Wait for manual approval to switch traffic
+    #   ansible.builtin.pause:
+    #     prompt: |
+          
+    #       Press ENTER to switch production traffic to {{ target_env }} environment
+    #       Or Ctrl+C then 'A' to abort
+
+    # # ==================== SWITCH PRODUCTION TRAFFIC ====================
+    # - name: Update production ingress to {{ target_env }}
+    #   kubernetes.core.k8s:
+    #     kubeconfig: "{{ kubeconfig_path  }}"
+    #     state: present
+    #     definition:
+    #       apiVersion: networking.k8s.io/v1
+    #       kind: Ingress
+    #       metadata:
+    #         name: erpnext-production
+    #         namespace: "{{ kubernetes_namespace }}"
+    #         annotations:
+    #           traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    #           traefik.ingress.kubernetes.io/router.tls: "true"
+    #           cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    #       spec:
+    #         ingressClassName: traefik
+    #         tls:
+    #         - secretName: erpnext-tls
+    #           hosts:
+    #           - tenant1.erp.waldhauser.sk
+    #           - tenant2.erp.waldhauser.sk
+    #           - tenant3.erp.waldhauser.sk
+    #         rules:
+    #         - host: tenant1.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+    #         - host: tenant2.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+    #         - host: tenant3.erp.waldhauser.sk
+    #           http:
+    #             paths:
+    #             - path: /
+    #               pathType: ImplementationSpecific
+    #               backend:
+    #                 service:
+    #                   name: "{{ target_release }}"
+    #                   port:
+    #                     number: 8080
+
+    # - name: Production traffic switched successfully
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       SUCCESS! Production traffic now points to {{ target_env }}
+    #       ===========================================
+
+    # # ==================== CLEANUP OLD ENVIRONMENT ====================
+    # - name: Wait before cleanup
+    #   ansible.builtin.pause:
+    #     prompt: "Press ENTER to remove old {{ current_env }} environment, or Ctrl+C to keep it"
+    #   when: current_env != 'none'
+
+    # - name: Remove old {{ current_env }} environment
+    #   kubernetes.core.helm:
+    #     name: "{{ active_release }}"
+    #     release_namespace: "{{ kubernetes_namespace }}"
+    #     kubeconfig: "{{ kubeconfig_path }}"
+    #     state: absent
+    #     wait: true
+    #   when: current_env != 'none'
+
+    # - name: Deployment complete
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       ===========================================
+    #       Blue-Green Deployment Complete!
+    #       Active environment: {{ target_env }}
+    #       Old environment removed: {{ current_env }}
+    #       ===========================================
