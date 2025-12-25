@@ -1,0 +1,82 @@
+---
+- name: shadow Deployment Strategy
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          SHADOW STRATEGY deployment
+          image tag: {{ new_erpnext_image_tag }}
+          base release: {{ helm_release_name }}
+          shadow release: {{ helm_release_name }}-shadow
+          namespace: {{ kubernetes_namespace }}
+          chart: {{ helm_chart_path }}
+
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    # ==================== DEPLOY shadow ====================
+    - name: Define shadow helm values patch
+      ansible.builtin.set_fact:
+        shadow_helm_patch:
+          dbHost: "mariadb-shadow.dbs.svc.cluster.local" # to use shadow DB
+          environment: shadow
+          jobs:
+            createSite: # dont run lengthy job when we copy files anyway
+              enabled: false
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          nameOverride: "{{ helm_release_name }}-shadow"
+          fullnameOverride: "{{ helm_release_name }}-shadow"
+          service:
+            name: "{{ helm_release_name }}-shadow-erpnext"
+            labels:
+              version: shadow
+              traffic-split: "true"
+          ingress:
+            enabled: false  # no ingress, just traffic mirroring
+          persistence:
+            enabled: true
+            existingClaim: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
+
+    - name: Merge shadow values with existing values
+      ansible.builtin.set_fact:
+        shadow_helm_values: "{{ existing_helm_values | combine(shadow_helm_patch, recursive=True) }}"
+
+    - name: Deploy shadow release
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-shadow"
+        kubeconfig_path: "{{ kubeconfig }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        values: "{{ shadow_helm_values }}"
+        state: present
+        wait: true
+        wait_timeout: 600s
+        atomic: true
+      register: shadow_helm_release
+
+    # ==================== WAIT FOR JOBS ====================
+    - name: Wait for all jobs to complete
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
+
+    # ==================== SYNCHRONIZE PVCs ====================
+    - name: Sync PVC from stable to shadow
+      ansible.builtin.include_tasks: canary/sync-pvc-canary.yaml
+      vars:
+        source_release: "{{ helm_release_name }}"
+        dest_release: "{{ helm_release_name }}-shadow"
+
+    # ==================== CREATE shadow ROUTING ====================
+    - name: Create shadow routing
+      ansible.builtin.include_tasks: shadow/create-shadow-routing.yaml
+
+    # ==================== HEALTHCHECK ====================
+    - name: Healthcheck first tenant
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
