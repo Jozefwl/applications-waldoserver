@@ -16,9 +16,10 @@ dbRootPassword: "MySecurePassword123"
 # dbExistingSecretPasswordKey: "password"
 
 # Deployment Strategy Configuration
-# Options: rolling, recreate (only k8s defaults)
+# Options: RollingUpdate, Recreate (only k8s defaults)
 deploymentStrategy:
-  type: rolling
+  type:
+    type: RollingUpdate
 
 image:
   repository: frappe/erpnext
