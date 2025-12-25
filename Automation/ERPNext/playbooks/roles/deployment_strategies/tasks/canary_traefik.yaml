@@ -23,28 +23,31 @@
         existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
     # ==================== GET CURRENT INGRESS ====================
-    - name: Get existing ingress configuration
-      kubernetes.core.k8s_info:
-        kind: Ingress
-        name: "{{ helm_release_name }}-erpnext"
-        namespace: "{{ kubernetes_namespace }}"
-        kubeconfig: "{{ kubeconfig }}"
-      register: existing_ingress
-      failed_when: existing_ingress.resources | length == 0
+    # - name: Get existing ingress configuration
+    #   kubernetes.core.k8s_info:
+    #     kind: Ingress
+    #     name: "{{ helm_release_name }}-erpnext"
+    #     namespace: "{{ kubernetes_namespace }}"
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   register: existing_ingress
+    #   failed_when: existing_ingress.resources | length == 0
 
-    - name: Extract tenant hosts from existing ingress
-      set_fact:
-        tenant_hosts: "{{ existing_ingress.resources[0].spec.rules | map(attribute='host') | list }}"
-        tls_secret: "{{ existing_ingress.resources[0].spec.tls[0].secretName }}"
+    # - name: Extract tenant hosts from existing ingress
+    #   set_fact:
+    #     tenant_hosts: "{{ existing_ingress.resources[0].spec.rules | map(attribute='host') | list }}"
+    #     tls_secret: "{{ existing_ingress.resources[0].spec.tls[0].secretName }}"
 
-    - name: Display detected tenants
-      debug:
-        msg: "Detected tenants: {{ tenant_hosts | join(', ') }}"
+    # - name: Display detected tenants
+    #   debug:
+    #     msg: "Detected tenants: {{ tenant_hosts | join(', ') }}"
 
     # ==================== DEPLOY CANARY ====================
     - name: Define canary helm values patch
       ansible.builtin.set_fact:
         canary_helm_patch:
+          jobs:
+            createSite: # dont run lengthy job when we copy files anyway
+              enabled: false
           image:
             tag: "{{ new_erpnext_image_tag }}"
           replicaCount: 1  # Start with single replica for canary
@@ -63,7 +66,7 @@
 
     - name: Merge canary values with existing values
       ansible.builtin.set_fact:
-        canary_helm_values: "{{ existing_helm_values | combine(canary_helm_patch, recursive=True) }}"
+        helm_values: "{{ existing_helm_values | combine(canary_helm_patch, recursive=True) }}"
 
     - name: Deploy canary release
       kubernetes.core.helm:
@@ -71,7 +74,7 @@
         kubeconfig_path: "{{ kubeconfig }}"
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
-        values: "{{ canary_helm_values }}"
+        values: "{{ helm_values }}"
         state: present
         wait: true
         wait_timeout: 600s
@@ -84,108 +87,15 @@
 
     # ==================== SYNCHRONIZE PVCs ====================
     - name: Sync PVC from stable to canary
-      ansible.builtin.include_tasks: canary/sync-pvc-canary.yaml
+      ansible.builtin.include_tasks: shared/sync-pvc.yaml
       vars:
         source_release: "{{ helm_release_name }}"
         dest_release: "{{ helm_release_name }}-canary"
 
-    # ==================== TRAEFIK WEIGHTED ROUND ROBIN ====================
-    - name: Create TraefikService for weighted routing
-      kubernetes.core.k8s:
-        state: present
-        kubeconfig: "{{ kubeconfig }}"
-        definition:
-          apiVersion: traefik.io/v1alpha1
-          kind: TraefikService
-          metadata:
-            name: frappe-bench-erpnext-weighted
-            namespace: erpnext
-          spec:
-            weighted:
-              services:
-                - name: frappe-bench-erpnext
-                  port: 8080
-                  weight: 9
-                - name: frappe-bench-canary-erpnext
-                  port: 8080
-                  weight: 1
-
-    # ==================== CANARY INGRESS WITH TRAFFIC SPLIT ====================
-    - name: Create Traefik IngressRoute for canary
-      kubernetes.core.k8s:
-        state: present
-        kubeconfig: "{{ kubeconfig }}"
-        definition:
-          apiVersion: traefik.io/v1alpha1
-          kind: IngressRoute
-          metadata:
-            name: frappe-bench-erpnext-canary
-            namespace: erpnext
-          spec:
-            entryPoints:
-              - websecure
-            routes:
-              - match: Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)
-                kind: Rule
-                services:
-                  - name: frappe-bench-erpnext-weighted
-                    kind: TraefikService
-            tls:
-              secretName: erpnext-tls
-
-    # ==================== CREATE CANARY TEST INGRESS ====================
-    - name: Create canary-only test ingress for validation
-      kubernetes.core.k8s:
-        state: present
-        kubeconfig: "{{ kubeconfig }}"
-        definition:
-          apiVersion: networking.k8s.io/v1
-          kind: Ingress
-          metadata:
-            name: "{{ helm_release_name }}-erpnext-canary-test"
-            namespace: "{{ kubernetes_namespace }}"
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-              traefik.ingress.kubernetes.io/router.entrypoints: websecure
-              traefik.ingress.kubernetes.io/router.tls: "true"
-              traefik.ingress.kubernetes.io/router.priority: "100"  # Higher priority
-              traefik.ingress.kubernetes.io/router.middlewares: "{{ kubernetes_namespace }}-canary-header@kubernetescrd"
-            labels:
-              app.kubernetes.io/instance: "{{ helm_release_name }}"
-              app.kubernetes.io/name: erpnext
-              deployment: canary-test
-          spec:
-            ingressClassName: traefik
-            rules:
-            - hosts: "{{ tenant_hosts }}"
-              http:
-                paths:
-                  - path: /
-                    pathType: ImplementationSpecific
-                    backend:
-                      service:
-                        name: "{{ helm_release_name }}-canary-erpnext"
-                        port:
-                          number: 8080
-            tls:
-              - hosts: "{{ tenant_hosts }}"
-                secretName: "{{ tls_secret }}"
-
-    - name: Create Traefik middleware for canary header routing
-      kubernetes.core.k8s:
-        state: present
-        kubeconfig: "{{ kubeconfig }}"
-        definition:
-          apiVersion: traefik.io/v1alpha1
-          kind: Middleware
-          metadata:
-            name: canary-header
-            namespace: "{{ kubernetes_namespace }}"
-          spec:
-            headers:
-              customRequestHeaders:
-                X-Canary-Version: "{{ new_erpnext_image_tag }}"
+    # ==================== CREATE CANARY ROUTING ====================
+    - name: Create canary routing
+      ansible.builtin.include_tasks: canary/create-canary-routing.yaml
 
     # ==================== HEALTHCHECK ====================
-    - name: Healthcheck canary endpoint directly
+    - name: Healthcheck first tenant
       ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml

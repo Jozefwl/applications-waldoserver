@@ -1,0 +1,55 @@
+# ================ WEIGHTED ROUND ROBIN ====================
+- name: Create TraefikService for weighted routing
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: TraefikService
+      metadata:
+        name: frappe-bench-weighted
+        namespace: erpnext
+      spec:
+        weighted:
+          services:
+            - name: frappe-bench-erpnext
+              port: 8080
+              weight: 9  
+            - name: frappe-bench-canary
+              port: 8080
+              weight: 1   # 10% canary initially
+
+# =============== MAKE PRODUCTION INGRESSROUTE =================
+- name: Create IngressRoute for production
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: frappe-bench-erpnext
+        namespace: erpnext
+      spec:
+        entryPoints:
+          - websecure
+        routes:
+          - match: Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)
+          # Alternative for production use would be regex or ansible loop to make a variable for all these tenants...
+            kind: Rule
+            services:
+              - name: frappe-bench-weighted
+                kind: TraefikService
+        tls:
+          secretName: erpnext-tls
+
+# ============ DELETE DEFAULT INGRESS =================
+# Is backing this up a good idea?
+- name: Remove default helm Ingress
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: networking.k8s.io/v1
+    kind: Ingress
+    name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
+    namespace: "{{ kubernetes_namespace }}"

@@ -1,0 +1,211 @@
+---
+# sync-pvc.yaml
+# Synchronizes PVC from source release to destination release
+# Usage: include this task with vars: source_release and dest_release
+
+- name: Display PVC sync info
+  debug:
+    msg: "Syncing PVC from {{ source_release }} to {{ dest_release }}"
+
+- name: Set PVC names
+  set_fact:
+    source_pvc: "{{ source_release }}-{{ kubernetes_namespace }}"
+    dest_pvc: "{{ dest_release }}"
+
+- name: Check if source PVC exists
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    name: "{{ source_pvc }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  register: source_pvc_check
+  failed_when: source_pvc_check.resources | length == 0
+
+- name: Check if destination PVC exists
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    name: "{{ dest_pvc }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  register: dest_pvc_check
+
+- name: Create destination PVC if it doesn't exist
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ dest_pvc }}"
+        namespace: "{{ kubernetes_namespace }}"
+        labels:
+          app: "{{ dest_release }}"
+          release: "{{ dest_release }}"
+      spec:
+        accessModes: "{{ source_pvc_check.resources[0].spec.accessModes }}"
+        resources:
+          requests:
+            storage: "{{ source_pvc_check.resources[0].spec.resources.requests.storage }}"
+        storageClassName: "{{ source_pvc_check.resources[0].spec.storageClassName | default(omit) }}"
+  when: dest_pvc_check.resources | length == 0
+
+- name: Wait for destination PVC to be bound
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    name: "{{ dest_pvc }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  register: dest_pvc_status
+  until: dest_pvc_status.resources[0].status.phase == "Bound"
+  retries: 30
+  delay: 2
+  when: dest_pvc_check.resources | length == 0
+
+- name: Delete old sync job if it exists
+  kubernetes.core.k8s:
+    state: absent
+    kind: Job
+    name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
+
+- name: Wait for cleanup
+  pause:
+    seconds: 5
+
+- name: Create PVC sync job
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
+        namespace: "{{ kubernetes_namespace }}"
+        labels:
+          app: pvc-sync
+          source: "{{ source_release }}"
+          destination: "{{ dest_release }}"
+      spec:
+        backoffLimit: 2
+        ttlSecondsAfterFinished: 3600
+        template:
+          spec:
+            serviceAccountName: default
+            containers:
+            - name: sync
+              image: alpine:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  #!/bin/bash
+                  # syncs frappe-bench filesystem and all configs from stable to destination release
+
+                  set -e
+
+                  echo "=========================================="
+                  echo "PVC SYNC: {{ source_release }} -> {{ dest_release }}"
+                  echo "=========================================="
+
+                  # install rsync for file sync
+                  apk add --no-cache rsync
+
+                  # verify source pvc is mounted and accessible
+                  if [ ! -d "/src/frappe-bench" ] ; then
+                      echo "ERROR: Source directory not found at /src/frappe-bench"
+                      exit 1
+                  fi
+
+                  # create destination directory structure
+                  mkdir -p /dst/frappe-bench
+
+                  echo ""
+                  echo "Source contents:"
+                  ls -lah /src/frappe-bench/ | head -20
+
+                  echo ""
+                  echo "Destination contents (before sync):"
+                  ls -lah /dst/frappe-bench/ | head -20
+
+                  echo ""
+                  echo "Starting rsync..."
+                  # sync all files including configs, excluding only compiled python and socket files
+                  rsync -avz \
+                  --delete \
+                  --ignore-errors \
+                  --exclude="*.pyc" \
+                  --exclude="__pycache__" \
+                  --exclude="*.sock" \
+                  /src/frappe-bench/ /dst/frappe-bench/
+
+                  echo ""
+                  echo "=========================================="
+                  echo "[SUCCESS] PVC SYNC COMPLETED SUCCESSFULLY"
+                  echo "=========================================="
+              volumeMounts:
+              - name: src
+                mountPath: /src/frappe-bench
+                readOnly: true
+              - name: dst
+                mountPath: /dst/frappe-bench
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1000m"
+            restartPolicy: OnFailure
+            volumes:
+            - name: src
+              persistentVolumeClaim:
+                claimName: "{{ source_pvc }}"
+            - name: dst
+              persistentVolumeClaim:
+                claimName: "{{ dest_pvc }}"
+
+- name: Wait for sync job to complete
+  kubernetes.core.k8s_info:
+    kind: Job
+    name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  register: sync_job_status
+  until: >
+    (sync_job_status.resources | length > 0) and
+    ((sync_job_status.resources[0].status.succeeded is defined and
+    sync_job_status.resources[0].status.succeeded == 1) or
+    (sync_job_status.resources[0].status.failed is defined and
+    sync_job_status.resources[0].status.failed > 0))
+  retries: "{{ (job_timeout | default(900) / 10) | int }}"
+  delay: 3
+
+- name: Get sync job logs
+  kubernetes.core.k8s_log:
+    name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+    kind: Job
+  register: sync_job_logs
+  ignore_errors: yes
+
+- name: Display sync logs
+  debug:
+    msg: "{{ sync_job_logs.log.split('\n') }}"
+  when: sync_job_logs.log is defined
+
+- name: Check if sync job failed
+  fail:
+    msg: |
+      PVC sync job failed!
+      Check logs above for details.
+  when: >
+    sync_job_status.resources[0].status.failed is defined and
+    sync_job_status.resources[0].status.failed > 0
+
+- name: PVC sync completed
+  debug:
+    msg: "[SUCCESS] PVC sync successful: {{ source_release }} -> {{ dest_release }}"

@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Default environment name, changed during bluegreen deployment
+# Default environment name, changed during bluegreen, canary, shadow deployment
 environment: 
   name: production
 

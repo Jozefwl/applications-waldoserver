@@ -104,7 +104,7 @@
       when: deployment_strategy == "bluegreen"
 
     - name: Execute canary strategy
-      include_tasks: roles/deployment_strategies/tasks/canary.yaml
+      include_tasks: roles/deployment_strategies/tasks/canary_traefik.yaml
       when: deployment_strategy == "canary"
 
     - name: Execute shadow strategy
