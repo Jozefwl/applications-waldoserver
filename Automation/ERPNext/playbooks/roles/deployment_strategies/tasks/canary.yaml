@@ -1,0 +1,370 @@
+# Istio-based Canary Deployment Strategy for ERPNext
+# Replaces Traefik with Istio VirtualService and DestinationRule for traffic splitting
+
+---
+- name: Canary Deployment Strategy (Istio)
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          CANARY STRATEGY deployment (Istio)
+          image tag: {{ new_erpnext_image_tag }}
+          base release: {{ helm_release_name }}
+          canary release: {{ helm_release_name }}-canary
+          namespace: {{ kubernetes_namespace }}
+          chart: {{ helm_chart_path }}
+          traffic split: 10% canary / 90% stable
+          traffic management: Istio VirtualService & DestinationRule
+
+
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+
+    # ==================== GET CURRENT INGRESS ====================
+    - name: Get existing ingress configuration
+      kubernetes.core.k8s_info:
+        kind: Ingress
+        name: "{{ helm_release_name }}-erpnext"
+        namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+      register: existing_ingress
+      failed_when: existing_ingress.resources | length == 0
+
+
+    - name: Extract tenant hosts from existing ingress
+      set_fact:
+        tenant_hosts: "{{ existing_ingress.resources[0].spec.rules | map(attribute='host') | list }}"
+        tls_secret: "{{ existing_ingress.resources[0].spec.tls[0].secretName }}"
+
+
+    - name: Display detected tenants
+      debug:
+        msg: "Detected tenants: {{ tenant_hosts | join(', ') }}"
+
+
+    # ==================== DEPLOY CANARY ====================
+    - name: Define canary helm values patch
+      ansible.builtin.set_fact:
+        canary_helm_patch:
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          replicaCount: 1  # Start with single replica for canary
+          nameOverride: "{{ helm_release_name }}-canary"
+          fullnameOverride: "{{ helm_release_name }}-canary"
+          service:
+            name: "{{ helm_release_name }}-canary-erpnext"
+            labels:
+              version: canary
+              app.kubernetes.io/version: canary
+          ingress:
+            enabled: false  # Istio will handle routing
+          persistence:
+            enabled: true
+            existingClaim: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
+
+
+    - name: Merge canary values with existing values
+      ansible.builtin.set_fact:
+        canary_helm_values: "{{ existing_helm_values | combine(canary_helm_patch, recursive=True) }}"
+
+
+    - name: Deploy canary release
+      kubernetes.core.helm:
+        name: "{{ helm_release_name }}-canary"
+        kubeconfig_path: "{{ kubeconfig }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        values: "{{ canary_helm_values }}"
+        state: present
+        wait: true
+        wait_timeout: 600s
+        atomic: true
+      register: canary_helm_release
+
+
+    # ==================== WAIT FOR JOBS ====================
+    - name: Wait for all jobs to complete
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
+
+
+    # ==================== SYNCHRONIZE PVCs ====================
+    - name: Sync PVC from stable to canary
+      ansible.builtin.include_tasks: canary/sync-pvc-canary.yaml
+      vars:
+        source_release: "{{ helm_release_name }}"
+        dest_release: "{{ helm_release_name }}-canary"
+
+
+    # ==================== ISTIO DESTINATION RULES ====================
+    - name: Create Istio DestinationRule for stable release
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: DestinationRule
+          metadata:
+            name: "{{ helm_release_name }}-erpnext-stable"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            host: "{{ helm_release_name }}-erpnext.{{ kubernetes_namespace }}.svc.cluster.local"
+            trafficPolicy:
+              connectionPool:
+                tcp:
+                  maxConnections: 100
+                http:
+                  http1MaxPendingRequests: 100
+                  maxRequestsPerConnection: 2
+              loadBalancer:
+                simple: ROUND_ROBIN
+              outlierDetection:
+                consecutive5xxErrors: 5
+                interval: 30s
+                baseEjectionTime: 30s
+            subsets:
+              - name: stable
+                labels:
+                  version: stable
+                trafficPolicy:
+                  connectionPool:
+                    tcp:
+                      maxConnections: 100
+                    http:
+                      http1MaxPendingRequests: 100
+
+
+    - name: Create Istio DestinationRule for canary release
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: DestinationRule
+          metadata:
+            name: "{{ helm_release_name }}-erpnext-canary"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            host: "{{ helm_release_name }}-canary-erpnext.{{ kubernetes_namespace }}.svc.cluster.local"
+            trafficPolicy:
+              connectionPool:
+                tcp:
+                  maxConnections: 50
+                http:
+                  http1MaxPendingRequests: 50
+                  maxRequestsPerConnection: 2
+              loadBalancer:
+                simple: ROUND_ROBIN
+              outlierDetection:
+                consecutive5xxErrors: 3
+                interval: 30s
+                baseEjectionTime: 30s
+            subsets:
+              - name: canary
+                labels:
+                  version: canary
+
+
+    # ==================== ISTIO VIRTUAL SERVICE FOR WEIGHTED TRAFFIC SPLIT ====================
+    - name: Create Istio VirtualService for weighted traffic split
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: "{{ helm_release_name }}-erpnext-weighted"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            hosts: "{{ tenant_hosts }}"
+            gateways:
+              - "{{ kubernetes_namespace }}/erpnext-gateway"
+            http:
+              # Route 10% traffic to canary
+              - match:
+                  - uri:
+                      prefix: "/"
+                route:
+                  - destination:
+                      host: "{{ helm_release_name }}-erpnext.{{ kubernetes_namespace }}.svc.cluster.local"
+                      subset: stable
+                      port:
+                        number: 8080
+                    weight: 90
+                  - destination:
+                      host: "{{ helm_release_name }}-canary-erpnext.{{ kubernetes_namespace }}.svc.cluster.local"
+                      subset: canary
+                      port:
+                        number: 8080
+                    weight: 10
+                timeout: 30s
+                retries:
+                  attempts: 3
+                  perTryTimeout: 10s
+
+
+    # ==================== ISTIO VIRTUAL SERVICE FOR CANARY-ONLY TESTING ====================
+    - name: Create Istio VirtualService for canary-only testing
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: "{{ helm_release_name }}-erpnext-canary-test"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            hosts:
+              - "canary-test.{{ tenant_hosts[0].split('.')[1:] | join('.') }}"  # e.g., canary-test.erp.waldhauser.sk
+            gateways:
+              - "{{ kubernetes_namespace }}/erpnext-gateway"
+            http:
+              # Route 100% traffic to canary for testing
+              - match:
+                  - uri:
+                      prefix: "/"
+                route:
+                  - destination:
+                      host: "{{ helm_release_name }}-canary-erpnext.{{ kubernetes_namespace }}.svc.cluster.local"
+                      subset: canary
+                      port:
+                        number: 8080
+                    weight: 100
+                timeout: 30s
+                retries:
+                  attempts: 3
+                  perTryTimeout: 10s
+
+
+    # ==================== ISTIO GATEWAY (if not already exists) ====================
+    - name: Create Istio Gateway for HTTPS ingress
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: Gateway
+          metadata:
+            name: erpnext-gateway
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            selector:
+              istio: ingressgateway
+            servers:
+              - port:
+                  number: 443
+                  name: https
+                  protocol: HTTPS
+                tls:
+                  mode: SIMPLE
+                  credentialName: "{{ tls_secret }}"
+                hosts: "{{ tenant_hosts + ['canary-test.' + tenant_hosts[0].split('.')[1:] | join('.')] }}"
+              - port:
+                  number: 80
+                  name: http
+                  protocol: HTTP
+                hosts: "{{ tenant_hosts + ['canary-test.' + tenant_hosts[0].split('.')[1:] | join('.')] }}"
+
+
+    # ==================== ISTIO REQUEST AUTHENTICATION & AUTHORIZATION POLICY ====================
+    - name: Create RequestAuthentication policy for canary
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: security.istio.io/v1beta1
+          kind: RequestAuthentication
+          metadata:
+            name: "{{ helm_release_name }}-canary-auth"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            selector:
+              matchLabels:
+                version: canary
+            jwtRules: []  # Add JWT rules if needed
+
+
+    - name: Create AuthorizationPolicy for canary
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: security.istio.io/v1beta1
+          kind: AuthorizationPolicy
+          metadata:
+            name: "{{ helm_release_name }}-canary-authz"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            selector:
+              matchLabels:
+                version: canary
+            rules:
+              - from:
+                  - source:
+                      principals: ["cluster.local/ns/{{ kubernetes_namespace }}/sa/default"]
+                to:
+                  - operation:
+                      methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+
+    # ==================== ISTIO TELEMETRY FOR CANARY MONITORING ====================
+    - name: Create Telemetry policy for canary metrics
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: telemetry.istio.io/v1alpha1
+          kind: Telemetry
+          metadata:
+            name: "{{ helm_release_name }}-canary-telemetry"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            metrics:
+              - providers:
+                  - name: prometheus
+                dimensions:
+                  - request_path
+                  - response_code
+                  - request_host
+                overrides:
+                  - match:
+                      metric: REQUEST_COUNT
+                    dimensions:
+                      - request_path
+                      - response_code
+                      - request_host
+                      - request_protocol
+
+
+    # ==================== ISTIO PEER AUTHENTICATION FOR mTLS ====================
+    - name: Create PeerAuthentication for mTLS between stable and canary
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: security.istio.io/v1beta1
+          kind: PeerAuthentication
+          metadata:
+            name: "{{ helm_release_name }}-erpnext-mtls"
+            namespace: "{{ kubernetes_namespace }}"
+          spec:
+            mtls:
+              mode: STRICT
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: erpnext
+
+
+    # ==================== HEALTHCHECK ====================
+    - name: Healthcheck canary endpoint directly
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
