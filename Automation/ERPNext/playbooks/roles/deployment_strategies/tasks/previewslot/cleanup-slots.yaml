@@ -23,6 +23,7 @@
 
       1) Remove BLUE environment
       2) Remove GREEN environment
+      3) SWAP slots Blue <-> Green
       3) Cancel (exit without changes)
 
       Enter your choice (1-3):
@@ -30,8 +31,8 @@
 
 - name: Validate choice
   ansible.builtin.fail:
-    msg: "Invalid choice. Please enter 1, 2, or 3."
-  when: cleanup_choice.user_input not in ['1', '2', '3']
+    msg: "Invalid choice. Please enter 1, 2, 3 or 4."
+  when: cleanup_choice.user_input not in ['1', '2', '3', '4']
 
 # ==================== REMOVE BLUE ====================
 - block:
@@ -108,6 +109,18 @@
           ════════════════════════════════════════
   when: cleanup_choice.user_input == '2'
 
+
+# ==================== SWITCH TRAFFIC ====================
+- name: Operation cancelled
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      Operation cancelled
+      NOT YET IMPLEMENTED !!!
+      ════════════════════════════════════════
+  when: cleanup_choice.user_input == '3'
+
+
 # ==================== CANCEL ====================
 - name: Operation cancelled
   ansible.builtin.debug:
@@ -116,4 +129,4 @@
       Operation cancelled
       Both environments still deployed
       ════════════════════════════════════════
-  when: cleanup_choice.user_input == '3'
+  when: cleanup_choice.user_input == '4'

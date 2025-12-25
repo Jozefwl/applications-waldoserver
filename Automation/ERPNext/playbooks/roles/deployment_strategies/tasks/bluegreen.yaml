@@ -1,6 +1,4 @@
 ---
-# ERPNext Blue/Green Deployment Strategy
-# Single release, label-based environment tracking
 - name: Blue/Green Strategy
   block:
     - name: Display strategy info
@@ -10,210 +8,175 @@
           Image tag: {{ new_erpnext_image_tag }}
           Release: {{ helm_release_name }}
           Namespace: {{ kubernetes_namespace }}
+    
+    # ==================== DETERMINE ENVIRONMENT ====================
+    - name: Gather information of Green chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-green"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: greenchart
+      failed_when: false
 
-# Determine current active environment by checking Helm releases
-- name: Gather information of Green chart
-  kubernetes.core.helm_info:
-    kubeconfig_path: "{{ kubeconfig }}"
-    name: "{{ helm_release_name }}-green"
-    release_namespace: erpnext
-  register: greenchart
-  failed_when: false  # Don't fail if chart doesn't exist
+    - name: Gather information of Blue chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-blue"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: bluechart
+      failed_when: false
 
-- name: Gather information of Blue chart
-  kubernetes.core.helm_info:
-    kubeconfig_path: "{{ kubeconfig }}"
-    name: "{{ helm_release_name }}-blue"
-    release_namespace: erpnext
-  register: bluechart
-  failed_when: false  # Don't fail if chart doesn't exist
-
-- name: Write GREEN chart info
-  debug:
-    msg: "{{ greenchart }}"
-    verbosity: 4
-
-- name: Write BLUE chart info
-  debug:
-    msg: "{{ bluechart }}"
-    verbosity: 4
-
-- name: Check deployment status
-  ansible.builtin.set_fact:
-    green_deployed: "{{ greenchart.status is defined and greenchart.status.status == 'deployed' }}"
-    blue_deployed: "{{ bluechart.status is defined and bluechart.status.status == 'deployed' }}"
-
-- name: Fail if both environments are deployed
-  ansible.builtin.fail:
-    msg: "Both blue and green environments are currently deployed. Cannot determine target environment."
-  when: green_deployed and blue_deployed
-
-- name: Determine current and target environment
-  ansible.builtin.set_fact:
-    current_env: "{{ 'green' if green_deployed else 'blue' if blue_deployed else 'none' }}"
-    target_env: "{{ 'blue' if green_deployed else 'green' if blue_deployed else 'green' }}"
-
-- name: Display environment transition
-  ansible.builtin.debug:
-    msg: "Current: {{ current_env }} | Deploying: {{ target_env }}"
-
-- name: Deploy new preview slot
-  include_tasks: previewslot/make-preview.yaml
-  when: new_previewslot == true
-
-    # # Load base Helm values
-    # - name: Load Helm values
-    #   ansible.builtin.slurp:
-    #     src: "{{ helm_chart_path }}/values.yaml"
-    #   register: helm_values_raw
-
-    # - name: Parse Helm values
-    #   ansible.builtin.set_fact:
-    #     base_values: "{{ helm_values_raw.content | b64decode | from_yaml }}"
-
-    # # # Combine helm values to not use mariadb from existing helm_release
-    # # - name: Prepare target environment values
-    # #   ansible.builtin.set_fact:
-    # #     target_values: >-
-    # #       {{
-    # #         base_values | combine({
-    # #           'jobs': {
-    # #             'configure': {'enabled': true},
-    # #             'createSite': {'enabled': true},
-    # #             'dropSite': {'enabled': false},
-    # #             'migrate': {'enabled': false},
-    # #             'backup': {'enabled': false},
-    # #             'volumePermissions': {'enabled': false}
-    # #           }
-    # #         }, recursive=True)
-    # #       }}
-
-
-    # # Deploy with same release name, only update image tag
-    # - name: "Deploy target environment ({{ target_env }})"
-    #   kubernetes.core.helm:
-    #     name: "{{ helm_release_name }}"
-    #     kubeconfig_path: "{{ kubeconfig }}"
-    #     chart_ref: "{{ helm_chart_path }}"
-    #     release_namespace: "{{ kubernetes_namespace }}"
-    #     create_namespace: false
-    #     values: "{{ base_values }}"
-    #     set_values:
-    #       - value: "environment.name={{ target_env }}"
-    #         value_type: string
-    #     #   - value: "commonLabels.deployment-env={{ target_env }}"
-    #     #     value_type: string
-    #     #   - value: "commonLabels.deployment-strategy=blue-green"
-    #     #     value_type: string
-    #     state: present
-    #     wait: true
-    #     wait_timeout: 600s
-
-    # # TODO: FIX
-    # # - name: Wait for target environment pods
-    # #   kubernetes.core.k8s_info:
-    # #     kubeconfig: "{{ kubeconfig }}"
-    # #     kind: Pod
-    # #     namespace: "{{ kubernetes_namespace }}"
-    # #     label_selectors:
-    # #       - "app.kubernetes.io/instance={{ helm_release_name }}"
-    # #       - "app.kubernetes.io/component=erpnext"
-    # #       - "deployment.kubernetes.io/environment={{ target_env }}"
-    # #   register: target_pods
-    # #   until: >-
-    # #     target_pods.resources | length > 0 and
-    # #     (target_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == target_pods.resources | length)
-    # #   retries: 60
-    # #   delay: 10
-
-
-    # # Health check target environment
-    # - name: Get gunicorn service
-    #   kubernetes.core.k8s_info:
-    #     kubeconfig: "{{ kubeconfig }}"
-    #     api_version: v1
-    #     kind: Service
-    #     name: "{{ helm_release_name }}-erpnext"
-    #     namespace: "{{ kubernetes_namespace }}"
-    #   register: target_svc
-
-    # - name: Health check target environment
-    #   ansible.builtin.uri:
-    #     url: "https://tenant1.erp.waldhauser.sk/api/method/ping"
-    #     method: GET
-    #     status_code: 200
-    #     timeout: 10
-    #   register: health_check
-    #   until: health_check.status == 200
-    #   retries: 30
-    #   delay: 5
-
-    # - name: Display health check result
-    #   ansible.builtin.debug:
-    #     msg: "Target environment ({{ target_env }}) is healthy"
-
-    # # Manual smoke test
-    # - name: Manual smoke test
-    #   ansible.builtin.pause:
-    #     prompt: |
-    #       ╔════════════════════════════════════════════════════════╗
-    #       ║             MANUAL SMOKE TEST REQUIRED                 ║
-    #       ╚════════════════════════════════════════════════════════╝
+    - name: Check deployment status
+      ansible.builtin.set_fact:
+        green_deployed: "{{ greenchart.status is defined and greenchart.status.status == 'deployed' }}"
+        blue_deployed: "{{ bluechart.status is defined and bluechart.status.status == 'deployed' }}"
+    
+    - name: Handle both environments deployed
+      block:
+        - name: Both environments deployed - run cleanup
+          ansible.builtin.include_tasks: previewslot/cleanup-slots.yaml
           
-    #       Target environment: {{ target_env }}
-    #       https://tenant1.erp.waldhauser.sk
-          
-    #       Access your sites to test functionality
-          
-    #       Did smoke test PASS? (Y/N)
-    #   register: smoke_test
+        - name: Exit after cleanup
+          ansible.builtin.meta: end_play
+      when: green_deployed and blue_deployed
 
-    # - name: Process smoke test result
-    #   ansible.builtin.set_fact:
-    #     smoke_passed: "{{ smoke_test.user_input | upper in ['Y', 'YES'] }}"
+    - name: Determine current and target environment
+      ansible.builtin.set_fact:
+        current_env: "{{ 'green' if green_deployed else 'blue' if blue_deployed else 'none' }}"
+        target_env: "{{ 'blue' if green_deployed else 'green' }}"
+        active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
+        target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
 
-    # # Rollback on failure - delete new pods
-    # - name: Rollback if smoke test failed
-    #   block:
-    #     - name: Display rollback notice
-    #       ansible.builtin.debug:
-    #         msg: "Smoke test FAILED - Rolling back to {{ current_env }}..."
+    - name: Display environment transition
+      ansible.builtin.debug:
+        msg: |
+          ===========================================
+          Blue-Green Deployment Status
+          ===========================================
+          Please look at your (Free/Open)Lens to see progress...
+          Current Active: {{ current_env }} ({{ active_release }})
+          Deploying To: {{ target_env }} ({{ target_release }})
+          ===========================================
 
-    #     - name: Delete new environment pods to force rollback
-    #       kubernetes.core.k8s:
-    #         kubeconfig: "{{ kubeconfig }}"
-    #         state: absent
-    #         kind: Pod
-    #         namespace: "{{ kubernetes_namespace }}"
-    #         label_selectors:
-    #           - "app.kubernetes.io/instance={{ helm_release_name }}"
-    #           - "app.kubernetes.io/component=erpnext"
-    #           - "deployment.kubernetes.io/environment={{ target_env }}"
+    # ==================== DEPLOY NEW ENVIRONMENT ====================
+    - name: Deploy {{ target_env }} environment
+      kubernetes.core.helm:
+        name: "{{ target_release }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+        values_files:
+          - "{{ helm_chart_path }}/values.yaml"
+        values:
+          environment:
+            name: "{{ target_env }}"
+          ingress:
+            enabled: false  # Disable ingress in helm, we manage it externally
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          jobs:
+            createSite: # dont run lengthy job when we copy files anyway
+              enabled: false
+        wait: true
+        wait_timeout: 10m
+        state: present
 
-    #     - name: Fail deployment
-    #       ansible.builtin.fail:
-    #         msg: "Deployment failed smoke test. Reverted to {{ current_env }} environment."
-    #   when: not smoke_passed
+    - name: Check if production ingress exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Ingress
+        namespace: "{{ kubernetes_namespace }}"
+        name: erpnext-production
+      register: prod_ingress
+      failed_when: false
 
-    # # # Switch traffic to target environment by updating pod selector label
-    # # - name: Patch all target pods with active label
-    # #   kubernetes.core.k8s:
-    # #     kubeconfig: "{{ kubeconfig }}"
-    # #     state: present
-    # #     definition:
-    # #       apiVersion: v1
-    # #       kind: Pod
-    # #       metadata:
-    # #         name: "{{ item.metadata.name }}"
-    # #         namespace: "{{ kubernetes_namespace }}"
-    # #         labels:
-    # #           deployment-env-active: "{{ target_env }}"
-    # #   loop: "{{ target_pods.resources }}"
+    # ==================== DEPLOY/UPDATE PRODUCTION INGRESS ====================
+    - name: Apply production ingress (pointing to {{ target_env }})
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: erpnext-production
+            namespace: "{{ kubernetes_namespace }}"
+            annotations:
+              kubernetes.io/ingress.class: traefik
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
+              traefik.ingress.kubernetes.io/router.tls: "true"
+          spec:
+            ingressClassName: traefik
+            tls:
+              - secretName: erpnext-tls
+                hosts:
+                  - tenant1.erp.waldhauser.sk
+                  - tenant2.erp.waldhauser.sk
+                  - tenant3.erp.waldhauser.sk
+            rules:
+              - host: tenant1.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant2.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant3.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+      when: first_install | bool
 
-    # - name: Display deployment complete
-    #   ansible.builtin.debug:
-    #     msg: |
-    #       Blue/Green deployment complete!
-    #       New active environment: {{ target_env }}
-    #       Pod names unchanged: {{ helm_release_name }}-*
-    #       Labels updated to route traffic
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for jobs to be completed
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
+
+      # ==================== SETUP PREVIEW  SLOT ====================
+    - name: Setup preview slot
+      #ansible.builtin.include_tasks: previewslot/setup-preview-ingress.yaml
+      ansible.builtin.include_tasks: previewslot/preview-routing.yaml
+      when: not (first_install | bool)
+
+      # ==================== CREATE TENANTS ====================
+    - name: Create additional tenants
+      ansible.builtin.include_tasks: extra-tenants.yaml
+      when: first_install | bool
+
+      # ==================== SYNCHRONIZE PVCs ====================
+    - name: Synchronize PVCs
+      ansible.builtin.include_tasks: shared/sync-pvc.yaml
+      vars:
+        source_release: "{{ active_release }}"
+        dest_release: "{{ target_env }}"
+
+    # ==================== SWITCH PRODUCTION ====================
+    - name: Switch production traffic
+      ansible.builtin.include_tasks: previewslot/switch-production-traffic.yaml
+      when: not (first_install | bool)
+
+    # ==================== CLEANUP ====================
+    - name: Cleanup old environment
+      ansible.builtin.include_tasks: previewslot/cleanup-old.yaml
+      when: not (first_install | bool)
+
+  

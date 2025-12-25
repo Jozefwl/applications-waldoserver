@@ -100,11 +100,11 @@
       when: deployment_strategy == "ramped"
 
     - name: Execute blue-green strategy
-      include_tasks: roles/deployment_strategies/tasks/bluegreen-test.yaml
+      include_tasks: roles/deployment_strategies/tasks/bluegreen.yaml
       when: deployment_strategy == "bluegreen"
 
     - name: Execute canary strategy
-      include_tasks: roles/deployment_strategies/tasks/canary_traefik.yaml
+      include_tasks: roles/deployment_strategies/tasks/canary.yaml
       when: deployment_strategy == "canary"
 
     - name: Execute shadow strategy
