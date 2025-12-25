@@ -157,17 +157,18 @@
       ansible.builtin.include_tasks: previewslot/preview-routing.yaml
       when: not (first_install | bool)
 
-      # ==================== CREATE TENANTS ====================
-    - name: Create additional tenants
-      ansible.builtin.include_tasks: extra-tenants.yaml
-      when: first_install | bool
+      # ==================== CREATE TENANTS ==================== TODO:FIX
+    # - name: Create additional tenants
+    #   ansible.builtin.include_tasks: extra-tenants.yaml
+    #   when: first_install | bool
 
       # ==================== SYNCHRONIZE PVCs ====================
     - name: Synchronize PVCs
-      ansible.builtin.include_tasks: shared/sync-pvc.yaml
+      ansible.builtin.include_tasks: previewslot/sync-pvc-bluegreen.yaml
       vars:
         source_release: "{{ active_release }}"
         dest_release: "{{ target_env }}"
+      when: not (first_install | bool)
 
     # ==================== SWITCH PRODUCTION ====================
     - name: Switch production traffic
