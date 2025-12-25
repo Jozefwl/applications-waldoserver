@@ -49,39 +49,13 @@
         atomic: true  # Automatically rolls back on failure
       register: helm_release
 
-    - name: Wait for all jobs in namespace to complete
-      block:
-      - name: Get all jobs in namespace
-        kubernetes.core.k8s_info:
-          kubeconfig: "{{ kubeconfig }}"
-          kind: Job
-          namespace: "{{ kubernetes_namespace }}"
-        register: all_jobs
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for jobs to be completed
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
 
-    - name: Wait for each job to complete
-      kubernetes.core.k8s_info:
-        kubeconfig: "{{ kubeconfig }}"
-        kind: Job
-        namespace: "{{ kubernetes_namespace }}"
-        name: "{{ item.metadata.name }}"
-      loop: "{{ all_jobs.resources }}"
-      register: job_wait
-      until: 
-        - job_wait.resources[0].status.succeeded | default(0) > 0
-        # OR job_wait.resources[0].status.failed | default(0) > 0
-      retries: 100
-      delay: 7
-      loop_control:
-        label: "{{ item.metadata.name }}"
-
+      # ==================== PING FIRST TENANT ====================
     - name: Ping first tenant until it's available
-      ansible.builtin.shell: |
-        curl -s -o /dev/null -w "%{http_code}" "https://{{ helmchart_values.ingress.hosts[0].host }}/"
-      register: tenant_check
-      retries: 100
-      delay: 5
-      until: tenant_check.stdout | int < 400
-      when: helm_release is succeeded
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
 
   rescue:
     - name: Confirm rollback deployment

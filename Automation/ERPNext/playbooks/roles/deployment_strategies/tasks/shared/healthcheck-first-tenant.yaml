@@ -1,0 +1,8 @@
+    - name: Ping first tenant until it's available
+      ansible.builtin.shell: |
+        curl -s -o /dev/null -w "%{http_code}" "https://{{ helm_values.ingress.hosts[0].host }}/"
+      register: tenant_check
+      retries: 100
+      delay: 5
+      until: tenant_check.stdout | int < 400
+      when: helm_release is succeeded

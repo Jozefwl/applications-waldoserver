@@ -48,43 +48,13 @@
         atomic: true
       register: helm_release
 
-    - name: Wait for all jobs in namespace to complete
-      block:
-        - name: Get all jobs in namespace
-          kubernetes.core.k8s_info:
-            kubeconfig: "{{ kubeconfig }}"
-            kind: Job
-            namespace: "{{ kubernetes_namespace }}"
-          register: all_jobs
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for jobs to be completed
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
 
-        - name: Wait for each job to complete
-          kubernetes.core.k8s_info:
-            kubeconfig: "{{ kubeconfig }}"
-            kind: Job
-            namespace: "{{ kubernetes_namespace }}"
-            name: "{{ item.metadata.name }}"
-          loop: "{{ all_jobs.resources }}"
-          register: job_wait
-          until: 
-            - job_wait.resources[0].status.succeeded | default(0) > 0 or job_wait.resources[0].status.failed | default(0) > 0
-          retries: 100
-          delay: 7
-          loop_control:
-            label: "{{ item.metadata.name }}"
-      when: all_jobs.resources | default([]) | length > 0
-
+      # ==================== PING FIRST TENANT ====================
     - name: Ping first tenant until it's available
-      ansible.builtin.shell: |
-        curl -s -o /dev/null -w "%{http_code}" "https://{{ helm_values.ingress.hosts[0].host }}/"
-      register: tenant_check
-      retries: 100
-      delay: 5
-      until: tenant_check.stdout | int < 400
-      when: helm_release is succeeded
-
-    - name: Record downtime duration
-      debug:
-        msg: "Downtime occurred during recreate deployment. Check logs for duration."
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
 
   rescue:
     - name: Confirm rollback deployment

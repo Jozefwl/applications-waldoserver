@@ -1,6 +1,11 @@
 ---
 - name: Sync PVCs from active to target environment
   block:
+    - name: Gather facts for timestamp
+      setup:
+        gather_subset:
+          - min
+
     - name: Figure out source and destination
       set_fact:
         source_env: "{{ 'green' if target_env == 'blue' else 'blue' }}"
@@ -23,9 +28,10 @@
       pause:
         seconds: 10
 
-    - name: Build sync job
-      set_fact:
-        sync_job:
+    - name: Create and run sync job
+      kubernetes.core.k8s:
+        state: present
+        definition:
           apiVersion: batch/v1
           kind: Job
           metadata:
@@ -138,21 +144,6 @@
                 - name: dst
                   persistentVolumeClaim:
                     claimName: "{{ helm_release_name }}-{{ dest_env }}-{{ kubernetes_namespace }}"
-
-    - name: Write job to temp file
-      tempfile:
-        suffix: .yaml
-      register: job_file
-
-    - name: Save job manifest
-      copy:
-        content: "{{ sync_job | to_nice_yaml }}"
-        dest: "{{ job_file.path }}"
-
-    - name: Run sync job
-      kubernetes.core.k8s:
-        state: present
-        src: "{{ job_file.path }}"
         kubeconfig: "{{ kubeconfig }}"
 
     - name: Wait for job to finish
@@ -163,11 +154,18 @@
         kubeconfig: "{{ kubeconfig }}"
       register: job_status
       until: >
-        job_status.resources[0].status.succeeded is defined and
-        job_status.resources[0].status.succeeded == 1
-      retries: "{{ (job_timeout / 10) | int }}"
+        (job_status.resources | length > 0) and
+        ((job_status.resources[0].status.succeeded is defined and
+        job_status.resources[0].status.succeeded == 1) or
+        (job_status.resources[0].status.failed is defined and
+        job_status.resources[0].status.failed > 0))
+      retries: "{{ (job_timeout | default(600) / 10) | int }}"
       delay: 10
-      failed_when: >
+
+    - name: Check if job failed
+      fail:
+        msg: "Sync job failed"
+      when: >
         job_status.resources[0].status.failed is defined and
         job_status.resources[0].status.failed > 0
 
@@ -185,10 +183,9 @@
         msg: "{{ job_logs.log.split('\n') }}"
       when: job_logs.log is defined
 
-    - name: Cleanup temp file
-      file:
-        path: "{{ job_file.path }}"
-        state: absent
+    - name: Generate restart timestamp
+      set_fact:
+        restart_timestamp: "{{ lookup('pipe', 'date --iso-8601=seconds') }}"
 
     - name: Restart pods to pick up new config
       kubernetes.core.k8s:
@@ -202,7 +199,7 @@
             template:
               metadata:
                 annotations:
-                  kubectl.kubernetes.io/restartedAt: "{{ ansible_date_time.iso8601 }}"
+                  kubectl.kubernetes.io/restartedAt: "{{ restart_timestamp }}"
 
     - name: Wait for pods to come back up
       kubernetes.core.k8s_info:
@@ -212,16 +209,21 @@
         kubeconfig: "{{ kubeconfig }}"
       register: deploy
       until: >
-        deploy.resources[0].status.availableReplicas is defined and
-        deploy.resources[0].status.availableReplicas == deploy.resources[0].spec.replicas
-      retries: "{{ (pod_ready_timeout / 5) | int }}"
+        (deploy.resources | length > 0) and
+        (deploy.resources[0].status.availableReplicas is defined and
+        deploy.resources[0].status.availableReplicas == deploy.resources[0].spec.replicas)
+      retries: "{{ (pod_ready_timeout | default(300) / 5) | int }}"
       delay: 5
 
-    - debug:
+    - name: Sync completed successfully
+      debug:
         msg: "Sync complete - {{ source_env }} -> {{ dest_env }}"
 
   rescue:
-    - debug:
-        msg: "Sync failed, check logs"
-    - fail:
+    - name: Sync failed
+      debug:
+        msg: "Sync failed, check logs above"
+    
+    - name: Fail the playbook
+      fail:
         msg: "PVC sync failed"

@@ -1,17 +1,23 @@
-- name: Loop over production domains only
-  debug:
-    msg: "{{ item.production }}"
-  loop: "{{ preview_domain_mapping }}"
+- name: List all instlled tenants
+  ansible.builtin.uri:
+    url: "https://{{ item.host }}/"
+    method: GET
+    status_code: [200, 301, 302] # Allowed codes
+    validate_certs: true
+    timeout: 10
+  loop: "{{ helm_values.ingress.hosts }}"
+  register: tenant_pings
+  ignore_errors: true # allows the playbook to continue even if one tenant is down
+  when: helm_release is succeeded
 
-# Or get all production domains as a list
-- name: Get production domains
-  set_fact:
-    production_domains: "{{ preview_domain_mapping | map(attribute='production') | list }}"
-
-# Result: ['tenant1.erp.waldhauser.sk', 'tenant2.erp.waldhauser.sk', 'tenant3.erp.waldhauser.sk']
-
-# Then loop over just those
-- name: Ping production domains
-  get_url:
-    url: "{{ item }}/api/v2/method/ping"
-  loop: "{{ production_domains }}"
+- name: Report tenant status
+  ansible.builtin.debug:
+    msg: >-
+      Tenant {{ item.item.host }} is 
+      {{ 'AVAILABLE' if item.status == 200 else 'UNAVAILABLE (Status: ' ~ (item.status | default('Error')) ~ ')' }}
+  loop: "{{ tenant_pings.results }}"
+  loop_control:
+    label: "{{ item.item.host }}"  
+  when: 
+    - helm_release is succeeded
+    - item.item is defined         
