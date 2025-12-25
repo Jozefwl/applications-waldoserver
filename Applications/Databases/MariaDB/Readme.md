@@ -26,18 +26,14 @@ helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && 
 ```
 
 # COPY TO SHADOW
+https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview
+https://mariadb.com/docs/server/mariadb-quickstart-guides/mariadb-backup-guide
 
-## 1. Get the root password from the original deployment
-ORIGINAL_PASSWORD=$(kubectl get secret --namespace dbs mariadb -o jsonpath="{.data.mariadb-root-password}" | base64 -d)
-
-## 2. Create a dump from the original database
-kubectl exec -n dbs mariadb-0 -- mysqldump -u root -p${ORIGINAL_PASSWORD} --all-databases --single-transaction --quick --lock-tables=false > mariadb-backup.sql
-
-## 3. Get the password for the shadow deployment
-SHADOW_PASSWORD=$(kubectl get secret --namespace mariadb-shadow mariadb-shadow -o jsonpath="{.data.mariadb-root-password}" | base64 -d)
+## 1. Create a dump from the original database
+kubectl exec -i -n dbs mariadb-0 -c mariadb -- mariadb-dump --user=root --password=MySecurePassword123 --lock-tables --all-databases > mariadb_backup_$(date +%Y%m%d)-$(date +%H%M).sql
 
 ## 4. Restore to the shadow database
-kubectl exec -i -n mariadb-shadow mariadb-shadow-0 -- mysql -u root -p${SHADOW_PASSWORD} < mariadb-backup.sql
+kubectl exec -i -n dbs mariadb-shadow-0 -c mariadb -- mariadb --user=root --password=MySecurePassword123 < mariadb_backup_20251225-1918.sql
 
 ## What This Command Does
 
