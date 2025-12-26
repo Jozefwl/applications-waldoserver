@@ -1,0 +1,60 @@
+# ================= TRAFFIC MIRRORING =================
+- name: Create TraefikService for mirroring
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: TraefikService
+      metadata:
+        name: frappe-bench-mirror
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        mirroring:
+          # 1. Main Destination: 100% of request responses come from here
+          name: frappe-bench-erpnext
+          port: 8080
+          mirrorBody: true
+          mirrors:
+            # 2. Shadow Destination: Receives a copy of the request (fire and forget)
+            - name: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
+              port: 8080
+              percent: 100
+              namespace: "{{ kubernetes_namespace }}"
+
+
+# ================= MAKE PRODUCTION INGRESSROUTE =================
+- name: Create IngressRoute for production
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: frappe-bench-erpnext-route
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        entryPoints:
+          - websecure
+        routes:
+          - match: Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)
+            kind: Rule
+            services:
+              # Point the IngressRoute to the TraefikService created above
+              - name: frappe-bench-mirror
+                kind: TraefikService
+                port: 8080
+        tls:
+          secretName: erpnext-tls
+
+# ================= HANDLE DEFAULT INGRESS =================
+# Recommendation: Disable via Helm values if possible, otherwise delete.
+- name: Remove default helm Ingress
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: networking.k8s.io/v1
+    kind: Ingress
+    name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
+    namespace: "{{ kubernetes_namespace }}"

@@ -8,7 +8,7 @@
       kind: TraefikService
       metadata:
         name: frappe-bench-weighted
-        namespace: erpnext
+        namespace: "{{ kubernetes_namespace }}"
       spec:
         weighted:
           services:
@@ -29,7 +29,7 @@
       kind: IngressRoute
       metadata:
         name: frappe-bench-erpnext
-        namespace: erpnext
+        namespace: "{{ kubernetes_namespace }}"
       spec:
         entryPoints:
           - websecure

@@ -8,7 +8,6 @@
   loop: "{{ helm_values.ingress.hosts }}"
   register: tenant_pings
   ignore_errors: true # allows the playbook to continue even if one tenant is down
-  when: helm_release is succeeded
 
 - name: Report tenant status
   ansible.builtin.debug:
@@ -17,7 +16,4 @@
       {{ 'AVAILABLE' if item.status == 200 else 'UNAVAILABLE (Status: ' ~ (item.status | default('Error')) ~ ')' }}
   loop: "{{ tenant_pings.results }}"
   loop_control:
-    label: "{{ item.item.host }}"  
-  when: 
-    - helm_release is succeeded
-    - item.item is defined         
+    label: "{{ item.item.host }}"      

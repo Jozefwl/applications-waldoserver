@@ -1,0 +1,11 @@
+- name: Copy MariaDB from PROD to SHADOW
+  pause:
+    prompt: |
+      Have you copied mariadb manually? If not do so now...
+      PRESS ENTER TO CONTINUE
+
+- name: Double check
+  pause:
+    prompt: |
+      Doublecheck copy is successful
+      PRESS ENTER TO CONTINUE
