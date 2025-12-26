@@ -59,6 +59,7 @@ spec:
     completions: 1                # One pod completes one calculation
     backoffLimit: 0               # No retries if it fails
     ttlSecondsAfterFinished: 60   # Cleanup job after 60 seconds
+    activeDeadlineSeconds: 7200   # Force shutdown after 2 hours = 7200
     template:
       spec:
         restartPolicy: Never

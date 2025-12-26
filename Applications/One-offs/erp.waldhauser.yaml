@@ -1,13 +1,9 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: erpnext
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: erp-site-html
-  namespace: erpnext
+  namespace: apps
 data:
    index.html: |
     <!doctype html>
@@ -99,11 +95,11 @@ data:
           border:1px solid rgba(255,255,255,0.04);
           font-weight:600;
         }
-        .tenant-links{
-          display:flex;
-          gap:10px;
-          margin-top:10px;
-          flex-wrap:wrap;
+        .tenant-links {
+          display: flex;
+          gap: 18px;
+          margin-top: 16px;
+          flex-wrap: wrap;
         }
         .tenant-links .btn{
           background:var(--glass);
@@ -149,6 +145,21 @@ data:
           .wrap{grid-template-columns:1fr; padding:0;}
           .aside{border-left:none;border-top:1px solid rgba(255,255,255,0.02);}
         }
+        .tenant-block {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+        }
+
+        .tenant-block .badge {
+          height: 22px;
+          border-radius: 6px;
+          background: rgba(255,255,255,0.03);
+          padding: 2px 6px;
+          object-fit: contain;
+        }
+        
       </style>
     </head>
     <body>
@@ -168,10 +179,22 @@ data:
 
           <!-- new tenant links -->
           <div class="tenant-links">
-            <a class="btn" href="https://tenant1.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 1</a>
-            <a class="btn" href="https://tenant2.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 2</a>
-            <a class="btn" href="https://tenant3.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 3</a>
+            <div class="tenant-block">
+              <a class="btn" href="https://tenant1.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 1</a>
+              <img class="badge" src="https://monitoring.fabrikanazemiaky.eu/api/badge/11/status" alt="Tenant 1 status">
+            </div>
+
+            <div class="tenant-block">
+              <a class="btn" href="https://tenant2.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 2</a>
+              <img class="badge" src="https://monitoring.fabrikanazemiaky.eu/api/badge/12/status" alt="Tenant 2 status">
+            </div>
+
+            <div class="tenant-block">
+              <a class="btn" href="https://tenant3.erp.waldhauser.sk" target="_blank" rel="noopener">Tenant 3</a>
+              <img class="badge" src="https://monitoring.fabrikanazemiaky.eu/api/badge/13/status" alt="Tenant 3 status">
+            </div>
           </div>
+
 
           <div class="features" aria-label="Features">
             <div class="card">
@@ -222,7 +245,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: erp-site-deployment
-  namespace: erpnext
+  namespace: apps
   labels:
     app: erp-site
 spec:
@@ -259,7 +282,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: erp-site-svc
-  namespace: erpnext
+  namespace: apps
   labels:
     app: erp-site
 spec:
@@ -276,7 +299,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: erp-waldhauser-cert
-  namespace: erpnext
+  namespace: apps
 spec:
   secretName: erp-waldhauser-tls 
   issuerRef:
@@ -291,7 +314,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: erp-site-ingress
-  namespace: erpnext
+  namespace: apps
   annotations:
     # Use your Traefik ingress class or ingressClassName below
     kubernetes.io/ingress.class: "traefik"
