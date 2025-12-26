@@ -32,8 +32,8 @@ https://mariadb.com/docs/server/mariadb-quickstart-guides/mariadb-backup-guide
 ## 1. Create a dump from the original database
 kubectl exec -i -n dbs mariadb-0 -c mariadb -- mariadb-dump --user=root --password=MySecurePassword123 --lock-tables --all-databases > mariadb_backup_$(date +%Y%m%d)-$(date +%H%M).sql
 
-## 4. Restore to the shadow database
-kubectl exec -i -n dbs mariadb-shadow-0 -c mariadb -- mariadb --user=root --password=MySecurePassword123 < mariadb_backup_20251225-1918.sql
+## 2. Restore to the shadow database
+kubectl exec -i -n dbs mariadb-shadow-0 -c mariadb -- mariadb --user=root --password=MySecurePassword123 < mariadb_backup_20251226-1914.sql
 
 ## What This Command Does
 
