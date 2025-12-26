@@ -1,0 +1,27 @@
+#https://docs.ansible.com/projects/ansible/latest/collections/kubernetes/core/k8s_info_module.html#ansible-collections-kubernetes-core-k8s-info-module
+- name: Get current active environment
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kind: Ingress
+    label_selectors:
+      - "environment=production"
+  register: ingress_info
+
+# - name: Show ingress debug
+#   debug: 
+#     msg: "{{ ingress_info }}"
+
+- name: Extract ingress hosts
+  set_fact:
+    ingress_hosts: "{{ ingress_info.resources[0].spec.rules | map(attribute='host') | list }}"
+  when: ingress_info.resources | length > 0
+
+- name: Extract service name from ingress
+  set_fact:
+    active_production_environment: "{{ ingress_info.resources[0].spec.rules[0].http.paths[0].backend.service.name }}"
+  when: ingress_info.resources | length > 0
+
+- name: Show service name
+  debug:
+    msg: "Active environment: {{ active_production_environment }}"

@@ -8,6 +8,12 @@ spec:
   {{- if not .Values.worker.gunicorn.autoscaling.enabled }}
   replicas: {{ .Values.worker.gunicorn.replicaCount }}
   {{- end }}
+  # ------------ DEPLOYMENT STRATEGY -------------
+  {{- if .Values.deploymentStrategy.type }}
+  strategy:
+    {{- toYaml .Values.deploymentStrategy.type | nindent 4 }}
+  {{- end }}
+  # ----------------------------------------------
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "erpnext.name" . }}-gunicorn
@@ -17,6 +23,7 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "erpnext.name" . }}-gunicorn
         app.kubernetes.io/instance: {{ .Release.Name }}-gunicorn
+        deployment.kubernetes.io/environment: {{ .Values.environment.name }}
     spec:
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

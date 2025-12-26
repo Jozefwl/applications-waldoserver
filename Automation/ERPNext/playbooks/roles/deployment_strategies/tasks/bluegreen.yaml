@@ -1,0 +1,202 @@
+---
+- name: Blue/Green Strategy
+  block:
+    - name: Display strategy info
+      debug:
+        msg: |
+          Starting Blue/Green Deployment
+          Image tag: {{ new_erpnext_image_tag }}
+          Release: {{ helm_release_name }}
+          Namespace: {{ kubernetes_namespace }}
+    
+    # ==================== DETERMINE ENVIRONMENT ====================
+    - name: Gather information of Green chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-green"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: greenchart
+      failed_when: false
+
+    - name: Gather information of Blue chart
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ helm_release_name }}-blue"
+        release_namespace: "{{ kubernetes_namespace }}"
+      register: bluechart
+      failed_when: false
+
+    - name: Check deployment status
+      ansible.builtin.set_fact:
+        green_deployed: "{{ greenchart.status is defined and greenchart.status.status == 'deployed' }}"
+        blue_deployed: "{{ bluechart.status is defined and bluechart.status.status == 'deployed' }}"
+    
+    - name: Handle both environments deployed
+      block:
+        - name: Both environments deployed - run cleanup
+          ansible.builtin.include_tasks: previewslot/cleanup-slots.yaml
+          
+        - name: Exit after cleanup
+          ansible.builtin.meta: end_play
+      when: green_deployed and blue_deployed
+
+    - name: Determine current and target environment
+      ansible.builtin.set_fact:
+        current_env: "{{ 'green' if green_deployed else 'blue' if blue_deployed else 'none' }}"
+        target_env: "{{ 'blue' if green_deployed else 'green' }}"
+        active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
+        target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
+
+    - name: Display environment transition
+      ansible.builtin.debug:
+        msg: |
+          ===========================================
+          Blue-Green Deployment Status
+          ===========================================
+          Please look at your (Free/Open)Lens to see progress...
+          Current Active: {{ current_env }} ({{ active_release }})
+          Deploying To: {{ target_env }} ({{ target_release }})
+          ===========================================
+
+
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    # ==================== DEPLOY NEW ENVIRONMENT ====================
+    - name: Define {{ target_env }} helm values patch
+      ansible.builtin.set_fact:
+        target_env_helm_patch:
+          environment:
+            name: "{{ target_env }}"
+          ingress:
+            enabled: false  # Disable ingress in helm, we manage it externally
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
+          jobs:
+            createSite:  # dont run lengthy job when we copy files anyway
+              enabled: false
+
+    - name: Merge {{ target_env }} values with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine(target_env_helm_patch, recursive=True) }}"
+
+    - name: Deploy {{ target_env }} environment
+      kubernetes.core.helm:
+        name: "{{ target_release }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+        values: "{{ helm_values }}"
+        wait: true
+        wait_timeout: 10m
+        state: present
+
+    - name: Check if production ingress exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Ingress
+        namespace: "{{ kubernetes_namespace }}"
+        name: erpnext-production
+      register: prod_ingress
+      failed_when: false
+
+    # ==================== DEPLOY/UPDATE PRODUCTION INGRESS ====================
+    - name: Apply production ingress (pointing to {{ target_env }})
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: erpnext-production
+            namespace: "{{ kubernetes_namespace }}"
+            labels:
+              environment: production
+            annotations:
+              kubernetes.io/ingress.class: traefik
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
+              traefik.ingress.kubernetes.io/router.tls: "true"
+          spec:
+            ingressClassName: traefik
+            tls:
+              - secretName: erpnext-tls
+                hosts:
+                  - tenant1.erp.waldhauser.sk
+                  - tenant2.erp.waldhauser.sk
+                  - tenant3.erp.waldhauser.sk
+            rules:
+              - host: tenant1.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant2.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+              - host: tenant3.erp.waldhauser.sk
+                http:
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: "{{ target_release }}-erpnext"
+                          port:
+                            number: 8080
+      when: first_install | bool
+
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for jobs to be completed
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
+
+      # ==================== SETUP PREVIEW  SLOT ====================
+    - name: Setup preview slot
+      #ansible.builtin.include_tasks: previewslot/setup-preview-ingress.yaml
+      ansible.builtin.include_tasks: previewslot/preview-routing.yaml
+      when: not (first_install | bool)
+
+      # ==================== CREATE TENANTS ==================== TODO:FIX
+    # - name: Create additional tenants
+    #   ansible.builtin.include_tasks: extra-tenants.yaml
+    #   when: first_install | bool
+
+      # ==================== SYNCHRONIZE PVCs ====================
+    - name: Synchronize PVCs
+      ansible.builtin.include_tasks: previewslot/sync-pvc-bluegreen.yaml
+      vars:
+        source_release: "{{ active_release }}"
+        dest_release: "{{ target_env }}"
+      when: not (first_install | bool)
+
+    # ==================== SWITCH PRODUCTION ====================
+    - name: Switch production traffic
+      ansible.builtin.include_tasks: previewslot/switch-production-traffic.yaml
+      when: not (first_install | bool)
+
+    # ==================== CLEANUP ====================
+    - name: Cleanup old environment
+      ansible.builtin.include_tasks: previewslot/cleanup-old.yaml
+      when: not (first_install | bool)
+
+  

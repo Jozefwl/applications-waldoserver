@@ -1,0 +1,7 @@
+# my custom folder structure for saving .csv(s)
+DeploymentStrategies/
+OLD_DATA/
+# Any new created csv files by monitoring scripts
+*.csv
+multiple_tenants/*.csv
+*.txt

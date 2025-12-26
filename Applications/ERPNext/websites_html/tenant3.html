@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fully Automated AI Solutions — Täysin automatisoidut tekoälyratkaisut</title>
+  <meta name="description" content="Scalable, secure, and fully automated AI solutions. Demo site. / Skaalautuvat, turvalliset ja täysin automatisoidut tekoälyratkaisut. Demo." />
+  <style>
+    :root{
+      --accent:#003580;
+      --accent-light:#4a8fd6;
+      --muted:#6b7280;
+      --card:#ffffff;
+      --bg:#f0f4f8;
+      --finnish-blue:#003580;
+      --finnish-white:#ffffff;
+    }
+    html,body{height:100%;margin:0;font-family:'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;background:var(--bg);color:#111;scroll-behavior:smooth}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:20px 0;
+      flex-wrap:wrap;
+      gap:16px;
+    }
+    
+    .brand{display:flex;gap:14px;align-items:center}
+    .logo{
+      width:56px;
+      height:56px;
+      border-radius:12px;
+      background:linear-gradient(135deg, var(--finnish-blue), var(--accent-light));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:700;
+      font-size:24px;
+      box-shadow:0 4px 12px rgba(0,53,128,0.2);
+    }
+    
+    .brand-text{line-height:1.3}
+    .brand-name{font-weight:700;font-size:18px;color:#111}
+    .brand-tagline{font-size:13px;color:var(--muted)}
+    
+    nav{display:flex;gap:20px;align-items:center}
+    nav a{color:var(--muted);text-decoration:none;transition:color 0.2s;font-weight:500}
+    nav a:hover{color:var(--accent)}
+    
+    .hero{
+      display:grid;
+      grid-template-columns:1fr 380px;
+      gap:32px;
+      margin-top:40px;
+      align-items:start;
+    }
+    
+    .card{
+      background:var(--card);
+      padding:28px;
+      border-radius:16px;
+      box-shadow:0 4px 20px rgba(15,23,42,0.06);
+      transition:transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 30px rgba(15,23,42,0.1);
+    }
+    
+    h1{margin:0 0 12px;font-size:36px;line-height:1.2;color:#111}
+    h2{margin:0 0 12px;font-size:26px;color:#111}
+    h3{margin:0 0 12px;font-size:20px;color:#111}
+    
+    p.lead{margin:0;color:var(--muted);font-size:17px;line-height:1.6}
+    
+    .btn{
+      display:inline-block;
+      padding:12px 24px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:600;
+      transition:all 0.2s;
+      font-size:15px;
+    }
+    
+    .btn-primary{
+      background:var(--finnish-blue);
+      color:#fff;
+      box-shadow:0 4px 12px rgba(0,53,128,0.2);
+    }
+    
+    .btn-primary:hover{
+      background:var(--accent-light);
+      transform:translateY(-2px);
+      box-shadow:0 6px 20px rgba(0,53,128,0.3);
+    }
+    
+    .btn-ghost{
+      border:2px solid #e6edf8;
+      color:var(--accent);
+      background:transparent;
+    }
+    
+    .btn-ghost:hover{
+      background:#f0f7ff;
+      border-color:var(--accent-light);
+    }
+    
+    .features{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:16px;
+      margin-top:24px;
+    }
+    
+    .feature{
+      padding:20px;
+      border-radius:12px;
+      background:#fff;
+      border:2px solid #f0f4f8;
+      transition:all 0.2s;
+    }
+    
+    .feature:hover{
+      border-color:var(--accent-light);
+      background:#fafbfc;
+      transform:translateY(-2px);
+    }
+    
+    .feature strong{
+      color:var(--finnish-blue);
+      font-size:16px;
+    }
+    
+    footer{margin-top:60px;padding:20px 0}
+    
+    .lang-toggle{display:flex;gap:8px;align-items:center}
+    .lang-toggle button{
+      padding:8px 14px;
+      border-radius:10px;
+      border:2px solid #e6eefb;
+      background:#fff;
+      cursor:pointer;
+      font-weight:600;
+      transition:all 0.2s;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:14px;
+    }
+    
+    .lang-toggle button:hover{
+      border-color:var(--accent-light);
+      background:#f0f7ff;
+    }
+    
+    .lang-toggle button.active{
+      background:var(--finnish-blue);
+      color:#fff;
+      border-color:var(--finnish-blue);
+    }
+    
+    .flag{
+      font-size:18px;
+      line-height:1;
+    }
+    
+    .chill-badge{
+      display:inline-block;
+      padding:6px 12px;
+      background:linear-gradient(135deg, #e0f2fe, #dbeafe);
+      border-radius:20px;
+      font-size:13px;
+      color:var(--finnish-blue);
+      font-weight:600;
+      margin-top:8px;
+    }
+    
+    .wave{
+      display:inline-block;
+      animation:wave 2s ease-in-out infinite;
+    }
+    
+    @keyframes wave{
+      0%, 100%{transform:rotate(0deg)}
+      25%{transform:rotate(15deg)}
+      75%{transform:rotate(-15deg)}
+    }
+    
+    .relaxed-note{
+      margin-top:16px;
+      padding:14px;
+      background:linear-gradient(135deg, #f0f9ff, #e0f2fe);
+      border-radius:12px;
+      border-left:4px solid var(--accent-light);
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.5;
+    }
+    
+    .hide{display:none}
+    
+    dl{margin:0;margin-top:12px;color:var(--muted);font-size:15px;line-height:1.8}
+    dt{font-weight:600;color:#111;margin-top:12px}
+    dd{margin:4px 0 0 0}
+    
+    ol{color:var(--muted);margin-top:12px;padding-left:24px;line-height:1.8}
+    ol li{margin-bottom:8px}
+    ol strong{color:var(--finnish-blue)}
+    
+    @media(max-width:900px){
+      .hero{grid-template-columns:1fr}
+      .features{grid-template-columns:1fr}
+      h1{font-size:28px}
+      header{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo">🤖</div>
+        <div class="brand-text">
+          <div class="brand-name">Fully Automated AI Solutions</div>
+          <div class="brand-tagline">Täysin automatisoidut tekoälyratkaisut</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <nav>
+          <a href="#home" data-lang="en">Home</a>
+          <a href="#solutions" data-lang="en">Solutions</a>
+          <a href="#how" data-lang="en">How it works</a>
+          <a href="#contact" data-lang="en">Contact</a>
+
+          <a href="#home" data-lang="fi" class="hide">Etusivu</a>
+          <a href="#solutions" data-lang="fi" class="hide">Ratkaisut</a>
+          <a href="#how" data-lang="fi" class="hide">Miten se toimii</a>
+          <a href="#contact" data-lang="fi" class="hide">Ota yhteyttä</a>
+        </nav>
+
+        <div class="lang-toggle">
+          <button id="btn-en">
+            <span class="flag">🇬🇧</span>
+            <span>EN</span>
+          </button>
+          <button id="btn-fi">
+            <span class="flag">🇫🇮</span>
+            <span>FI</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="card">
+            <div>
+              <span class="chill-badge" data-lang="en">✨ Relaxed & Reliable</span>
+              <span class="chill-badge hide" data-lang="fi">✨ Rento & Luotettava</span>
+            </div>
+            
+            <h1 data-lang="en">Fully Automated AI Solutions <span class="wave">👋</span></h1>
+            <h1 data-lang="fi" class="hide">Täysin automatisoidut tekoälyratkaisut <span class="wave">👋</span></h1>
+            
+            <p class="lead" data-lang="en">
+              Accelerate operations with intelligent automation — from data intake to production, zero-touch. 
+              We keep things simple, smooth, and stress-free.
+            </p>
+            <p class="lead hide" data-lang="fi">
+              Kiihdytä toimintaasi älykkäällä automaatiolla — datan vastaanotosta tuotantoon, kosketuksetta. 
+              Pidämme asiat yksinkertaisina, sujuvina ja stressittöminä.
+            </p>
+
+            <div class="relaxed-note" data-lang="en">
+              <strong>🌊 Take it easy:</strong> This is a demo site — no pressure, just exploring what's possible. 
+              Grab a coffee ☕ and check out what we've built.
+            </div>
+            <div class="relaxed-note hide" data-lang="fi">
+              <strong>🌊 Ota rennosti:</strong> Tämä on demoversio — ei paineita, vain tutkitaan mitä on mahdollista. 
+              Ota kuppi kahvia ☕ ja katso mitä olemme rakentaneet.
+            </div>
+
+            <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+              <a href="#" class="btn btn-primary" data-lang="en">Try Demo</a>
+              <a href="#" class="btn btn-primary hide" data-lang="fi">Kokeile demoa</a>
+
+              <a href="#" class="btn btn-ghost" data-lang="en">Learn More</a>
+              <a href="#" class="btn btn-ghost hide" data-lang="fi">Lue lisää</a>
+            </div>
+
+            <div style="margin-top:16px;color:var(--muted);font-size:13px">
+              <div data-lang="en">🏷️ Image tag: <strong>demo</strong> · 🚀 Release: <strong>demo-release</strong></div>
+              <div data-lang="fi" class="hide">🏷️ Image tag: <strong>demo</strong> · 🚀 Julkaisu: <strong>demo-release</strong></div>
+            </div>
+          </div>
+
+          <div class="features" style="margin-top:20px">
+            <div class="feature">
+              <strong data-lang="en">🔄 End-to-end Automation</strong>
+              <strong data-lang="fi" class="hide">🔄 Koko prosessin automaatio</strong>
+              <div data-lang="en" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5">
+                From data ingestion to model serving — repeatable, auditable and scheduled. Set it up once, relax forever.
+              </div>
+              <div data-lang="fi" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5" class="hide">
+                Datasta mallin tarjoamiseen — toistettavaa, auditoitavaa ja aikataulutettua. Asenna kerran, rentoudu ikuisesti.
+              </div>
+            </div>
+
+            <div class="feature">
+              <strong data-lang="en">🚀 Zero-touch Deployments</strong>
+              <strong data-lang="fi" class="hide">🚀 Kosketukseton käyttöönotto</strong>
+              <div data-lang="en" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5">
+                Push a tag, kick back, and watch the system smoothly roll updates across clusters.
+              </div>
+              <div data-lang="fi" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5" class="hide">
+                Paina tagia, rentoudu ja katso järjestelmän päivittävän sujuvasti klustereissa.
+              </div>
+            </div>
+
+            <div class="feature">
+              <strong data-lang="en">📊 Monitoring & Alerts</strong>
+              <strong data-lang="fi" class="hide">📊 Seuranta & Hälytykset</strong>
+              <div data-lang="en" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5">
+                Built-in health checks, metrics, and automatic rollback. We've got your back while you chill.
+              </div>
+              <div data-lang="fi" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5" class="hide">
+                Sisäänrakennetut terveystarkistukset, metriikat ja automaattinen palautus. Me hoidamme homman kun sinä rentoudut.
+              </div>
+            </div>
+
+            <div class="feature">
+              <strong data-lang="en">🔒 Security & Compliance</strong>
+              <strong data-lang="fi" class="hide">🔒 Turvallisuus & Vaatimustenmukaisuus</strong>
+              <div data-lang="en" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5">
+                Role-based access, encrypted secrets, and audit logs. Secure by default, chill by design.
+              </div>
+              <div data-lang="fi" style="color:var(--muted);margin-top:8px;font-size:14px;line-height:1.5" class="hide">
+                Roolipohjainen käyttöoikeus, salatut salaisuudet ja lokitarkastus. Turvallinen lähtökohtaisesti, rento suunnittelultaan.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="card">
+            <h3 data-lang="en">Quick Info 🇫🇮</h3>
+            <h3 data-lang="fi" class="hide">Nopeat tiedot 🇫🇮</h3>
+            <dl>
+              <dt data-lang="en">📋 Demo</dt>
+              <dd data-lang="en">Non-functional example content for ERPNext/Frappe. Just vibes, no stress.</dd>
+
+              <dt data-lang="fi" class="hide">📋 Demo</dt>
+              <dd data-lang="fi" class="hide">Ei-toiminnallinen esimerkkisisältö ERPNext/Frappea varten. Vain tunnelmaa, ei stressiä.</dd>
+
+              <dt style="margin-top:12px" data-lang="en">📍 Location</dt>
+              <dd data-lang="en">Helsinki, Finland 🇫🇮</dd>
+
+              <dt data-lang="fi" class="hide" style="margin-top:12px">📍 Sijainti</dt>
+              <dd data-lang="fi" class="hide">Helsinki, Suomi 🇫🇮</dd>
+
+              <dt style="margin-top:12px" data-lang="en">📧 Contact</dt>
+              <dd data-lang="en">demo@example.com<br>+358 40 123 4567</dd>
+
+              <dt data-lang="fi" class="hide" style="margin-top:12px">📧 Yhteystiedot</dt>
+              <dd data-lang="fi" class="hide">demo@esimerkki.fi<br>+358 40 123 4567</dd>
+
+              <dt style="margin-top:12px" data-lang="en">☕ Vibe</dt>
+              <dd data-lang="en">Relaxed, efficient, Finnish quality</dd>
+
+              <dt data-lang="fi" class="hide" style="margin-top:12px">☕ Tunnelma</dt>
+              <dd data-lang="fi" class="hide">Rento, tehokas, suomalaista laatua</dd>
+            </dl>
+
+            <div style="margin-top:20px">
+              <a class="btn btn-primary" href="#contact" data-lang="en" style="width:100%;text-align:center">Get in touch 💬</a>
+              <a class="btn btn-primary hide" href="#contact" data-lang="fi" style="width:100%;text-align:center">Ota yhteyttä 💬</a>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="how" style="margin-top:32px">
+        <div class="card">
+          <h2 data-lang="en">How it works ⚙️</h2>
+          <h2 data-lang="fi" class="hide">Miten se toimii ⚙️</h2>
+
+          <ol>
+            <li data-lang="en"><strong>Integrate</strong> — Connect APIs, files and streams. Easy setup, no headaches.</li>
+            <li data-lang="en"><strong>Automate</strong> — Define pipelines, training and deployment policies. Let the robots do the work.</li>
+            <li data-lang="en"><strong>Monitor</strong> — Observe drift, metrics and alerts. We'll let you know if anything's up.</li>
+            <li data-lang="en"><strong>Iterate</strong> — Retrain, test and promote models. Continuous improvement, zero stress.</li>
+
+            <li data-lang="fi" class="hide"><strong>Integroi</strong> — Kytke API:t, tiedostot ja streamit. Helppo asennus, ei päänsärkyä.</li>
+            <li data-lang="fi" class="hide"><strong>Automatisoi</strong> — Määrittele putket, koulutus- ja julkaisuasetukset. Anna robottien tehdä työ.</li>
+            <li data-lang="fi" class="hide"><strong>Seuraa</strong> — Tarkkaa muutoksia, metriikoita ja hälytyksiä. Ilmoitamme jos jotain tapahtuu.</li>
+            <li data-lang="fi" class="hide"><strong>Kehitä</strong> — Uudelleenkouluta, testaa ja julkaise malleja. Jatkuvaa kehitystä, nolla stressiä.</li>
+          </ol>
+
+          <div class="relaxed-note" style="margin-top:20px" data-lang="en">
+            <strong>💡 Pro tip:</strong> Start small, scale gradually, and don't overthink it. Good coffee and good automation go hand in hand ☕
+          </div>
+          <div class="relaxed-note hide" style="margin-top:20px" data-lang="fi">
+            <strong>💡 Vinkki:</strong> Aloita pienestä, skaalaa vähitellen, äläkä ajattele liikaa. Hyvä kahvi ja hyvä automaatio kulkevat käsi kädessä ☕
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" style="margin-top:24px">
+        <div class="card">
+          <h2 data-lang="en">Contact 📬</h2>
+          <h2 data-lang="fi" class="hide">Ota yhteyttä 📬</h2>
+
+          <p data-lang="en" style="color:var(--muted);margin-top:12px;line-height:1.6">
+            For demo inquiries or just to chat about AI and automation over virtual coffee ☕, 
+            email us at <a href="mailto:demo@example.com" style="color:var(--accent);font-weight:600">demo@example.com</a>
+          </p>
+          <p data-lang="fi" class="hide" style="color:var(--muted);margin-top:12px;line-height:1.6">
+            Demo-kyselyt tai juttelemaan tekoälystä ja automaatiosta virtuaalikahvin ☕ kera, 
+            lähetä meille sähköpostia: <a href="mailto:demo@esimerkki.fi" style="color:var(--accent);font-weight:600">demo@esimerkki.fi</a>
+          </p>
+
+          <div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:12px;text-align:center">
+            <div style="font-size:32px;margin-bottom:8px">🇫🇮</div>
+            <div style="color:var(--muted);font-size:14px" data-lang="en">
+              <strong>Made in Finland</strong> — Where saunas meet silicon and everything runs smoothly
+            </div>
+            <div style="color:var(--muted);font-size:14px" class="hide" data-lang="fi">
+              <strong>Tehty Suomessa</strong> — Missä saunat kohtaavat piin ja kaikki toimii sujuvasti
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <div class="card" style="padding:20px;text-align:center">
+        <div style="font-size:14px;color:var(--muted);line-height:1.6">
+          <span data-lang="en">© 2025 Fully Automated AI Solutions (Demo) 🇫🇮<br>This website is a mock/demo only. Keep calm and automate on.</span>
+          <span data-lang="fi" class="hide">© 2025 Täysin automatisoidut tekoälyratkaisut (Demo) 🇫🇮<br>Tämä sivusto on pelkkä demo. Pysy rauhallisena ja automatisoi eteenpäin.</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Simple EN / FI toggle that shows/hides elements with matching data-lang attributes
+    const setLang = (lang) => {
+      document.querySelectorAll('[data-lang]').forEach(el => {
+        if (el.getAttribute('data-lang') === lang) {
+          el.classList.remove('hide')
+        } else {
+          el.classList.add('hide')
+        }
+      })
+      
+      // Update active button state
+      document.querySelectorAll('.lang-toggle button').forEach(btn => {
+        btn.classList.remove('active')
+      })
+      if (lang === 'en') {
+        document.getElementById('btn-en').classList.add('active')
+      } else {
+        document.getElementById('btn-fi').classList.add('active')
+      }
+      
+      // set html lang attribute for better accessibility
+      document.documentElement.lang = lang === 'en' ? 'en' : 'fi'
+    }
+
+    document.getElementById('btn-en').addEventListener('click', () => setLang('en'))
+    document.getElementById('btn-fi').addEventListener('click', () => setLang('fi'))
+
+    // default language
+    setLang('en')
+  </script>
+</body>
+</html>

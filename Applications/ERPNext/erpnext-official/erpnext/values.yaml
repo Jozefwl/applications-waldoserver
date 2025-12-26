@@ -2,69 +2,32 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Deployment Strategy Configuration
-# Options: rolling, recreate, ramped, blue-green, canary, shadow
-deploymentStrategy:
-  type: rolling
-  
-  parameters:
-    # For rolling/ramped strategies
-    maxUnavailable: 0      # Number/percentage of pods to stop
-    maxSurge: 1            # Number/percentage of new pods to add
-    
-    # For blue-green deployment
-    blueGreen:
-      manualApproval: false
-      cleanupOldVersion: true
-      healthCheckTimeout: 300  # seconds (5 minutes)
-      healthCheckRetries: 30
-      healthCheckDelay: 10
-    
-    # For canary deployment
-    canary:
-      stages:
-        - weight: 10       # 10% traffic to canary
-          duration: 300    # 5 minutes
-        - weight: 50       # 50% traffic to canary
-          duration: 300    # 5 minutes
-        - weight: 100      # 100% traffic to canary
-          duration: 0      # Immediate
-      
-      # Automatic rollback thresholds
-      errorRateThreshold: 5        # percentage (%)
-      latencyP95Threshold: 1000    # milliseconds (ms)
-      cpuThreshold: 80             # percentage (%)
-      memoryThreshold: 85          # percentage (%)
-      
-      # Metrics collection
-      metricsProvider: "prometheus"  # or "datadog", "new-relic"
-      metricsQuery: "rate(http_requests_total[5m])"
-    
-    # For shadow deployment
-    shadow:
-      mirrorPercent: 100            # 100% of traffic mirrored
-      monitoringDuration: 3600      # 1 hour
-      
-      # Analysis thresholds
-      errorRateThreshold: 5         # percentage
-      latencyDifference: 10         # percentage (acceptable difference vs production)
+# Default environment name, changed during bluegreen, canary, shadow deployment
+environment: 
+  name: production
 
 # Configure external database host
-# dbHost: ""
-# dbPort: 3306
-# dbRootUser: ""
-# dbRootPassword: ""
+dbHost: "mariadb.dbs.svc.cluster.local"
+dbPort: 3306
+dbRootUser: "root"
+dbRootPassword: "MySecurePassword123"
 # dbRds: false
 # dbExistingSecret: ""
 # dbExistingSecretPasswordKey: "password"
 
+# Deployment Strategy Configuration
+# Options: RollingUpdate, Recreate (only k8s defaults)
+deploymentStrategy:
+  type:
+    type: RollingUpdate
+
 image:
   repository: frappe/erpnext
-  tag: v15.87.1
+  tag: v15.87.1 # Default
   pullPolicy: IfNotPresent
 
 nginx:
-  replicaCount: 1
+  replicaCount: 2
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -77,7 +40,7 @@ nginx:
     upstreamRealIPAddress: "127.0.0.1"
     upstreamRealIPRecursive: "off"
     upstreamRealIPHeader: "X-Forwarded-For"
-    frappeSiteNameHeader: "$host"
+    frappeSiteNameHeader: "$host" # should fallback to $host when not found
     proxyReadTimeout: "120"
     clientMaxBodySize: "50m"
   livenessProbe:
@@ -114,7 +77,7 @@ nginx:
 
 worker:
   gunicorn:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -144,7 +107,7 @@ worker:
     sidecars: []
 
   default:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -166,7 +129,7 @@ worker:
     sidecars: []
 
   short:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -188,7 +151,7 @@ worker:
     sidecars: []
 
   long:
-    replicaCount: 1
+    replicaCount: 2
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -273,7 +236,7 @@ worker:
     periodSeconds: 5
 
 socketio:
-  replicaCount: 1
+  replicaCount: 2
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -306,17 +269,17 @@ persistence:
     enabled: true
     # existingClaim: ""
     size: 8Gi
-    storageClass: "nfs"
+    storageClass: "local-path"
     accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   logs:
     # Container based log search and analytics stack recommended
     enabled: false
     # existingClaim: ""
     size: 8Gi
-    storageClass: "nfs"
+    storageClass: "local-path"
     accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
 
 # Ingress
 ingress:
@@ -324,9 +287,9 @@ ingress:
   enabled: true
   className: "traefik"  # Change to "nginx" if using nginx-ingress
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure" # also change to nginx annotations 
+    traefik.ingress.kubernetes.io/router.tls: "true" # this one as well
+    cert-manager.io/cluster-issuer: "letsencrypt-prod" 
   hosts:
   - host: tenant1.erp.waldhauser.sk
     paths:
@@ -512,7 +475,7 @@ mariadb:
     registry: docker.io
     tag: "latest"
   # https://github.com/bitnami/charts/tree/master/bitnami/mariadb
-  enabled: true
+  enabled: false
   auth:
     rootPassword: "changeit"
     username: "erpnext"

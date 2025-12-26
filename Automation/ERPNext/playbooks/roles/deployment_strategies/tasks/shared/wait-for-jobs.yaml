@@ -1,0 +1,24 @@
+    - name: Wait for all jobs in namespace to complete
+      block:
+      - name: Get all jobs in namespace
+        kubernetes.core.k8s_info:
+          kubeconfig: "{{ kubeconfig }}"
+          kind: Job
+          namespace: "{{ kubernetes_namespace }}"
+        register: all_jobs
+
+    - name: Wait for each job to complete
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Job
+        namespace: "{{ kubernetes_namespace }}"
+        name: "{{ item.metadata.name }}"
+      loop: "{{ all_jobs.resources }}"
+      register: job_wait
+      until: 
+        - job_wait.resources[0].status.succeeded | default(0) > 0
+        # OR job_wait.resources[0].status.failed | default(0) > 0
+      retries: 100
+      delay: 7
+      loop_control:
+        label: "{{ item.metadata.name }}"

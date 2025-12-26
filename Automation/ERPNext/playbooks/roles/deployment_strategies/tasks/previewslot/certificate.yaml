@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: preview-tls
+  namespace: erpnext
+spec:
+  # The secret name where the actual TLS cert will be stored
+  secretName: preview-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: preview.tenant1.erp.waldhauser.sk
+  dnsNames:
+    - preview.tenant1.erp.waldhauser.sk
+    - preview.tenant2.erp.waldhauser.sk
+    - preview.tenant3.erp.waldhauser.sk

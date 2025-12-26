@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Best Company LLC. - Your Success is Our Priority</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; color: #333; }
+
+header {
+  background: linear-gradient(90deg, #0033a0, #ffffff, #ee0000);
+  color: #000;
+  padding: 50px 20px;
+  text-align: center;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+header h1 { margin: 0; font-size: 42px; color: #0033a0; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+header h2 { margin: 8px 0 0; font-size: 24px; opacity: 0.9; color: #ee0000; font-weight: 600; }
+
+.tagline {
+  background: linear-gradient(135deg, #0033a0, #0055cc);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.lang-toggle { 
+  text-align: center; 
+  margin: 30px auto;
+  padding: 0 20px;
+}
+.lang-toggle button {
+  padding: 14px 32px;
+  margin: 0 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  background: #0033a0;
+  color: #fff;
+  font-weight: 700;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0,51,160,0.3);
+}
+.lang-toggle button:hover {
+  background: #0055cc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,51,160,0.4);
+}
+.lang-toggle button.sk { 
+  background: #ee0000;
+  box-shadow: 0 2px 8px rgba(238,0,0,0.3);
+}
+.lang-toggle button.sk:hover {
+  background: #ff3333;
+  box-shadow: 0 4px 12px rgba(238,0,0,0.4);
+}
+
+.section {
+  background: #fff;
+  width: 90%; 
+  max-width: 1000px;
+  margin: 25px auto;
+  padding: 35px;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.hero-section {
+  background: linear-gradient(135deg, #0033a0, #0055cc);
+  color: #fff;
+  padding: 50px 35px;
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.hero-section h2 {
+  font-size: 32px;
+  margin-bottom: 15px;
+}
+
+.hero-section p {
+  font-size: 18px;
+  line-height: 1.7;
+  max-width: 800px;
+  margin: 0 auto 25px;
+  opacity: 0.95;
+}
+
+.cta-button {
+  display: inline-block;
+  padding: 16px 40px;
+  background: #ee0000;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 17px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(238,0,0,0.3);
+  margin: 5px;
+}
+
+.cta-button:hover {
+  background: #ff3333;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(238,0,0,0.4);
+}
+
+.cta-secondary {
+  background: #fff;
+  color: #0033a0;
+}
+
+.cta-secondary:hover {
+  background: #f0f0f0;
+}
+
+h3 { 
+  color: #0033a0;
+  border-left: 6px solid #ee0000; 
+  padding-left: 15px;
+  margin-bottom: 20px;
+  font-size: 26px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.info-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #0033a0;
+}
+
+.label { 
+  font-weight: 700; 
+  margin-top: 12px; 
+  color: #0033a0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.value { 
+  margin-bottom: 12px; 
+  color: #444;
+  font-size: 15px;
+  padding-left: 5px;
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 25px;
+}
+
+.service-card {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  padding: 25px;
+  border-radius: 10px;
+  border: 2px solid #dee2e6;
+  transition: all 0.3s;
+}
+
+.service-card:hover {
+  border-color: #0033a0;
+  box-shadow: 0 6px 20px rgba(0,51,160,0.15);
+  transform: translateY(-3px);
+}
+
+.service-card h4 {
+  color: #0033a0;
+  margin-bottom: 10px;
+  font-size: 20px;
+}
+
+.service-card p {
+  color: #555;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.guarantee-box {
+  background: linear-gradient(135deg, #fff9e6, #fff4cc);
+  border: 3px solid #ffd700;
+  padding: 25px;
+  border-radius: 10px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.guarantee-box h4 {
+  color: #cc8800;
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.testimonial {
+  background: #f8f9fa;
+  padding: 20px;
+  border-left: 4px solid #ee0000;
+  margin: 15px 0;
+  font-style: italic;
+  color: #555;
+}
+
+.testimonial .author {
+  font-style: normal;
+  font-weight: 700;
+  color: #0033a0;
+  margin-top: 10px;
+}
+
+.hidden { display: none; }
+
+footer {
+  background: #2c3e50;
+  color: #ecf0f1;
+  text-align: center;
+  padding: 30px 20px;
+  margin-top: 40px;
+}
+
+footer p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  header h1 { font-size: 28px; }
+  .hero-section h2 { font-size: 24px; }
+  .services-grid, .info-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Best Company LLC.</h1>
+  <h2>Najlepšia Spoločnosť s.r.o.</h2>
+</header>
+
+<div class="tagline" id="tagline-en">
+  Your Success is Our Priority | Trusted by Thousands Worldwide
+</div>
+<div class="tagline hidden" id="tagline-sk">
+  Váš úspech je našou prioritou | Dôveruje nám tisíce po celom svete
+</div>
+
+<div class="lang-toggle">
+  <button onclick="showEN()">🇬🇧 English</button>
+  <button class="sk" onclick="showSK()">🇸🇰 Slovensky</button>
+</div>
+
+<!-- ENGLISH VERSION -->
+<div id="en">
+  <div class="section hero-section">
+    <h2>Unlock Unprecedented Financial Growth</h2>
+    <p>
+      At Best Company LLC., we specialize in revolutionary wealth management solutions that guarantee exceptional returns. 
+      Our proprietary investment strategies have helped thousands of clients achieve financial independence faster than they ever imagined possible.
+    </p>
+    <a href="#contact" class="cta-button">Start Earning Today</a>
+    <a href="#services" class="cta-button cta-secondary">Explore Premium Services</a>
+  </div>
+
+  <div class="section">
+    <h3>Why Choose Best Company LLC.?</h3>
+    <div class="services-grid">
+      <div class="service-card">
+        <h4>💰 Guaranteed Returns</h4>
+        <p>Our exclusive investment portfolios offer guaranteed annual returns of 25-40%. No hidden fees, just pure profit directly to your account.</p>
+      </div>
+      <div class="service-card">
+        <h4>🚀 Fast-Track Wealth Program</h4>
+        <p>Accelerate your financial goals with our proprietary wealth acceleration system. Most clients see 10x returns within the first 12 months.</p>
+      </div>
+      <div class="service-card">
+        <h4>🏆 VIP Financial Advisory</h4>
+        <p>Exclusive access to our elite team of financial experts. We handle everything—you just watch your wealth grow effortlessly.</p>
+      </div>
+      <div class="service-card">
+        <h4>🌍 Global Opportunities</h4>
+        <p>Tap into exclusive international markets with zero risk. Our offshore solutions maximize returns while minimizing taxes—100% legal.</p>
+      </div>
+      <div class="service-card">
+        <h4>⚡ Instant Liquidity</h4>
+        <p>Access your funds anytime with our revolutionary instant withdrawal system. Your money, your control, always available 24/7.</p>
+      </div>
+      <div class="service-card">
+        <h4>🔒 Bank-Level Security</h4>
+        <p>Your investments are protected by our proprietary security protocols. We guarantee the safety of every single euro you entrust to us.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="guarantee-box">
+      <h4>⭐ 100% Money-Back Guarantee ⭐</h4>
+      <p style="color: #555; font-size: 16px; line-height: 1.7;">
+        We're so confident in our services that we offer an unconditional money-back guarantee. 
+        If you're not completely satisfied within the first 90 days, we'll refund your initial investment—plus 10% interest. 
+        <strong>No questions asked.</strong>
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>What Our Clients Say</h3>
+    <div class="testimonial">
+      "I invested €5,000 and within 6 months I had €32,000 in my account. I couldn't believe it! Best Company LLC. changed my life forever."
+      <div class="author">— Martin K., Bratislava</div>
+    </div>
+    <div class="testimonial">
+      "The VIP Advisory team handled everything. I literally did nothing and my portfolio grew by 380% in one year. Absolutely incredible!"
+      <div class="author">— Jana P., Košice</div>
+    </div>
+    <div class="testimonial">
+      "I was skeptical at first, but the guaranteed returns are real. This is the smartest financial decision I've ever made."
+      <div class="author">— Peter M., Žilina</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Limited-Time Exclusive Offer</h3>
+    <p style="font-size: 17px; line-height: 1.7; color: #555;">
+      <strong style="color: #ee0000;">Act now and receive a €500 bonus</strong> when you open a Premium Investment Account with a minimum deposit of €2,000. 
+      Plus, enjoy <strong>zero management fees for your first year</strong>—a €1,200 value absolutely free.
+    </p>
+    <p style="font-size: 16px; line-height: 1.7; color: #555; margin-top: 15px;">
+      Our Fast-Track Wealth Program is currently accepting new clients, but spaces are limited. 
+      Don't miss this opportunity to secure your financial future with the most trusted name in wealth management.
+    </p>
+    <div style="margin-top: 25px; text-align: center;">
+      <a href="#contact" class="cta-button" style="font-size: 19px; padding: 18px 50px;">Claim Your Bonus Now</a>
+    </div>
+  </div>
+
+  <div class="section" id="contact">
+    <h3>Company Information</h3>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Company Name</div>
+        <div class="value">Best Company LLC.</div>
+        <div class="label">Abbreviation</div>
+        <div class="value">BCL</div>
+        <div class="label">Tax ID (IČ DPH)</div>
+        <div class="value">SK2024567890</div>
+        <div class="label">Registration Number (IČO)</div>
+        <div class="value">45678901</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Date of Establishment</div>
+        <div class="value">January 15, 2020</div>
+        <div class="label">Country</div>
+        <div class="value">Slovakia</div>
+        <div class="label">Default Currency</div>
+        <div class="value">EUR</div>
+        <div class="label">Domain</div>
+        <div class="value">Financial Services & Investment</div>
+      </div>
+    </div>
+    <div style="margin-top: 25px;">
+      <div class="label">Registered Office</div>
+      <div class="value">Hlavná 789/12, 811 01 Bratislava, Slovak Republic</div>
+      <div class="label">Email</div>
+      <div class="value">info@bestcompany.sk | invest@bestcompany.sk</div>
+      <div class="label">Phone</div>
+      <div class="value">+421 2 5555 8888 (24/7 Support)</div>
+      <div class="label">Website</div>
+      <div class="value">www.bestcompany.sk</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Our Leadership</h3>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Chief Executive Officer</div>
+        <div class="value">Ing. Alexander Novotný, MBA</div>
+        <div class="label">Chief Financial Officer</div>
+        <div class="value">Mgr. Zuzana Horváthová, CFA</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Head of Investment Strategy</div>
+        <div class="value">Dr. Miroslav Kováč, PhD</div>
+        <div class="label">Director of Client Relations</div>
+        <div class="value">Lucia Balogová, MSc</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLOVAK VERSION -->
+<div id="sk" class="hidden">
+  <div class="section hero-section">
+    <h2>Odomknite bezprecedentný finančný rast</h2>
+    <p>
+      V Best Company LLC. sa špecializujeme na revolučné riešenia správy majetku, ktoré zaručujú výnimočné výnosy. 
+      Naše proprietárne investičné stratégie pomohli tisíckam klientov dosiahnuť finančnú nezávislosť rýchlejšie, ako si kedy dokázali predstaviť.
+    </p>
+    <a href="#contact" class="cta-button">Začnite zarábať dnes</a>
+    <a href="#services" class="cta-button cta-secondary">Preskúmajte prémiové služby</a>
+  </div>
+
+  <div class="section">
+    <h3>Prečo si vybrať Best Company LLC.?</h3>
+    <div class="services-grid">
+      <div class="service-card">
+        <h4>💰 Garantované výnosy</h4>
+        <p>Naše exkluzívne investičné portfóliá ponúkajú garantované ročné výnosy 25-40%. Žiadne skryté poplatky, len čistý zisk priamo na váš účet.</p>
+      </div>
+      <div class="service-card">
+        <h4>🚀 Program rýchleho zbohatnutia</h4>
+        <p>Zrýchlite svoje finančné ciele s naším proprietárnym systémom akcelerácie bohatstva. Väčšina klientov vidí 10-násobný výnos počas prvých 12 mesiacov.</p>
+      </div>
+      <div class="service-card">
+        <h4>🏆 VIP finančné poradenstvo</h4>
+        <p>Exkluzívny prístup k nášmu elitní tímu finančných expertov. My sa postaráme o všetko—vy len sledujete, ako vaše bohatstvo bez námahy rastie.</p>
+      </div>
+      <div class="service-card">
+        <h4>🌍 Globálne príležitosti</h4>
+        <p>Využite exkluzívne medzinárodné trhy s nulovým rizikom. Naše offshore riešenia maximalizujú výnosy a minimalizujú dane—100% legálne.</p>
+      </div>
+      <div class="service-card">
+        <h4>⚡ Okamžitá likvidita</h4>
+        <p>Prístup k vašim prostriedkom kedykoľvek s naším revolučným systémom okamžitého výberu. Vaše peniaze, vaša kontrola, vždy dostupné 24/7.</p>
+      </div>
+      <div class="service-card">
+        <h4>🔒 Bezpečnosť na úrovni bánk</h4>
+        <p>Vaše investície sú chránené našimi proprietárnymi bezpečnostnými protokolmi. Garantujeme bezpečnosť každého eura, ktoré nám zverujete.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="guarantee-box">
+      <h4>⭐ 100% záruka vrátenia peňazí ⭐</h4>
+      <p style="color: #555; font-size: 16px; line-height: 1.7;">
+        Sme si tak istí našimi službami, že ponúkame bezpodmienečnú záruku vrátenia peňazí. 
+        Ak nebudete úplne spokojní počas prvých 90 dní, vrátime vašu počiatočnú investíciu—plus 10% úrok. 
+        <strong>Bez akýchkoľvek otázok.</strong>
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Čo hovoria naši klienti</h3>
+    <div class="testimonial">
+      "Investoval som 5 000 € a do 6 mesiacov som mal na účte 32 000 €. Nemohol som tomu uveriť! Best Company LLC. mi navždy zmenila život."
+      <div class="author">— Martin K., Bratislava</div>
+    </div>
+    <div class="testimonial">
+      "VIP poradenský tím sa postaral o všetko. Doslova som nerobil nič a moje portfólio vzrástlo o 380% za jeden rok. Úplne neuveriteľné!"
+      <div class="author">— Jana P., Košice</div>
+    </div>
+    <div class="testimonial">
+      "Spočiatku som bol skeptický, ale garantované výnosy sú skutočné. Toto je najchytrejšie finančné rozhodnutie, aké som kedy urobil."
+      <div class="author">— Peter M., Žilina</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Exkluzívna ponuka s obmedzenou platnosťou</h3>
+    <p style="font-size: 17px; line-height: 1.7; color: #555;">
+      <strong style="color: #ee0000;">Konajte teraz a získajte bonus 500 €</strong> pri otvorení Prémiového investičného účtu s minimálnym vkladom 2 000 €. 
+      Plus, užívajte si <strong>nulové poplatky za správu počas prvého roka</strong>—hodnota 1 200 € úplne zadarmo.
+    </p>
+    <p style="font-size: 16px; line-height: 1.7; color: #555; margin-top: 15px;">
+      Náš Program rýchleho zbohatnutia v súčasnosti prijíma nových klientov, ale miesta sú obmedzené. 
+      Nenechajte si ujsť túto príležitosť zabezpečiť svoju finančnú budúcnosť s najdôveryhodnejším menom v správe majetku.
+    </p>
+    <div style="margin-top: 25px; text-align: center;">
+      <a href="#contact" class="cta-button" style="font-size: 19px; padding: 18px 50px;">Získajte svoj bonus teraz</a>
+    </div>
+  </div>
+
+  <div class="section" id="contact">
+    <h3>Firemné informácie</h3>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Názov spoločnosti</div>
+        <div class="value">Najlepšia Spoločnosť s.r.o.</div>
+        <div class="label">Skratka</div>
+        <div class="value">BCL</div>
+        <div class="label">IČ DPH</div>
+        <div class="value">SK2024567890</div>
+        <div class="label">IČO</div>
+        <div class="value">45678901</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Dátum založenia</div>
+        <div class="value">15. januára 2020</div>
+        <div class="label">Krajina</div>
+        <div class="value">Slovensko</div>
+        <div class="label">Predvolená mena</div>
+        <div class="value">EUR</div>
+        <div class="label">Doména</div>
+        <div class="value">Finančné služby a investície</div>
+      </div>
+    </div>
+    <div style="margin-top: 25px;">
+      <div class="label">Sídlo spoločnosti</div>
+      <div class="value">Hlavná 789/12, 811 01 Bratislava, Slovenská republika</div>
+      <div class="label">Email</div>
+      <div class="value">info@bestcompany.sk | invest@bestcompany.sk</div>
+      <div class="label">Telefón</div>
+      <div class="value">+421 2 5555 8888 (24/7 podpora)</div>
+      <div class="label">Webové stránky</div>
+      <div class="value">www.bestcompany.sk</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Naše vedenie</h3>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Generálny riaditeľ</div>
+        <div class="value">Ing. Alexander Novotný, MBA</div>
+        <div class="label">Finančný riaditeľ</div>
+        <div class="value">Mgr. Zuzana Horváthová, CFA</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Vedúci investičnej stratégie</div>
+        <div class="value">Dr. Miroslav Kováč, PhD</div>
+        <div class="label">Riaditeľ vzťahov s klientmi</div>
+        <div class="value">Lucia Balogová, MSc</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p><strong>Best Company LLC.</strong> | IČO: 45678901 | IČ DPH: SK2024567890</p>
+  <p>Registered in Slovak Republic | All investments carry risk</p>
+  <p style="margin-top: 15px; font-size: 12px; opacity: 0.8;">
+    © 2020-2025 Best Company LLC. All rights reserved. | Terms & Conditions apply.
+  </p>
+</footer>
+
+<script>
+function showEN() { 
+  document.getElementById('en').classList.remove('hidden'); 
+  document.getElementById('sk').classList.add('hidden');
+  document.getElementById('tagline-en').classList.remove('hidden');
+  document.getElementById('tagline-sk').classList.add('hidden');
+}
+function showSK() { 
+  document.getElementById('sk').classList.remove('hidden'); 
+  document.getElementById('en').classList.add('hidden');
+  document.getElementById('tagline-sk').classList.remove('hidden');
+  document.getElementById('tagline-en').classList.add('hidden');
+}
+window.onload = function() { showEN(); }
+</script>
+
+</body>
+</html>

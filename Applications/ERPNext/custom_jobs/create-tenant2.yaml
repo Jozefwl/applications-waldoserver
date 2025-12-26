@@ -5,8 +5,13 @@ metadata:
   namespace: erpnext
 spec:
   backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
   template:
     spec:
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
       containers:
       - name: create-site
         image: frappe/erpnext:v15.87.1
@@ -15,13 +20,16 @@ spec:
         - -c
         - |
           cd /home/frappe/frappe-bench
+          if bench --site tenant2.erp.waldhauser.sk list-apps >/dev/null 2>&1; then
+            exit 0
+          fi
           bench new-site tenant2.erp.waldhauser.sk \
             --db-name tenant2_db \
             --db-type mariadb \
-            --db-host erpnext-mariadb \
+            --db-host mariadb-headless.dbs.svc.cluster.local \
             --db-port 3306 \
             --db-root-username root \
-            --db-root-password changeit \
+            --db-root-password MySecurePassword123 \
             --admin-password ChangeMe2@123 \
             --mariadb-user-host-login-scope='%'
           bench --site tenant2.erp.waldhauser.sk install-app erpnext
@@ -31,5 +39,7 @@ spec:
       volumes:
       - name: sites
         persistentVolumeClaim:
-          claimName: erpnext
+          claimName: frappe-bench-erpnext
       restartPolicy: Never
+
+

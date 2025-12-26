@@ -1,0 +1,163 @@
+---
+- name: Create tenants if first install
+  block:
+    - name: Gather facts for timestamp
+      setup:
+        gather_subset:
+          - min
+
+    - name: Prompt for tenant creation
+      pause:
+        prompt: "Do you want to create tenants (tenant2 and tenant3)? (yes/no)"
+      register: create_tenants_prompt
+      when: not force_deployment | default(false)
+
+    - name: Set tenant creation flag
+      set_fact:
+        first_install: "{{ force_deployment | default(false) or (create_tenants_prompt.user_input | default('no') | lower == 'yes') }}"
+
+    - name: Define tenant creation jobs
+      set_fact:
+        tenant_jobs:
+          - name: tenant2
+            domain: tenant2.erp.waldhauser.sk
+            db_name: tenant2_db
+            admin_password: ChangeMe2@123
+          - name: tenant3
+            domain: tenant3.erp.waldhauser.sk
+            db_name: tenant3_db
+            admin_password: ChangeMe2@123
+
+    - name: Create tenant sites
+      when: first_install | bool
+      block:
+        - name: Generate unique timestamp
+          set_fact:
+            job_timestamp: "{{ lookup('pipe', 'date +%s') }}"
+
+        - name: Create and apply tenant creation jobs
+          kubernetes.core.k8s:
+            state: present
+            definition:
+              apiVersion: batch/v1
+              kind: Job
+              metadata:
+                name: "create-{{ item.name }}-site-{{ job_timestamp }}"
+                namespace: "{{ kubernetes_namespace }}"
+              spec:
+                backoffLimit: 3
+                ttlSecondsAfterFinished: 3600
+                template:
+                  spec:
+                    containers:
+                    - name: create-site
+                      image: "frappe/erpnext:{{ new_erpnext_image_tag }}"
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          cd /home/frappe/frappe-bench
+                          echo "Checking if site {{ item.domain }} already exists..."
+                          if bench --site {{ item.domain }} list-apps >/dev/null 2>&1; then
+                            echo "Site {{ item.domain }} already exists. Skipping creation."
+                            exit 0
+                          fi
+                          echo "Creating new site {{ item.domain }}..."
+                          bench new-site {{ item.domain }} \
+                            --db-name {{ item.db_name }} \
+                            --db-type mariadb \
+                            --db-host mariadb-headless.dbs.svc.cluster.local \
+                            --db-port 3306 \
+                            --db-root-username root \
+                            --db-root-password MySecurePassword123 \
+                            --admin-password {{ item.admin_password }} \
+                            --mariadb-user-host-login-scope='%'
+                          echo "Installing ERPNext app on {{ item.domain }}..."
+                          bench --site {{ item.domain }} install-app erpnext
+                          echo "Site {{ item.domain }} created successfully!"
+                      volumeMounts:
+                        - name: sites
+                          mountPath: /home/frappe/frappe-bench/sites
+                      resources:
+                        requests:
+                          memory: "512Mi"
+                          cpu: "500m"
+                        limits:
+                          memory: "1Gi"
+                          cpu: "1000m"
+                    volumes:
+                      - name: sites
+                        persistentVolumeClaim:
+                          claimName: "{{ helm_release_name }}-{{ target_env }}-{{ kubernetes_namespace }}"
+                    restartPolicy: Never
+            kubeconfig: "{{ kubeconfig }}"
+          loop: "{{ tenant_jobs }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Wait for tenant creation jobs to complete
+          kubernetes.core.k8s_info:
+            kind: Job
+            name: "create-{{ item.name }}-site-{{ job_timestamp }}"
+            namespace: "{{ kubernetes_namespace }}"
+            kubeconfig: "{{ kubeconfig }}"
+          register: tenant_job_status
+          until: >
+            (tenant_job_status.resources | length > 0) and
+            ((tenant_job_status.resources[0].status.succeeded is defined and
+            tenant_job_status.resources[0].status.succeeded == 1) or
+            (tenant_job_status.resources[0].status.failed is defined and
+            tenant_job_status.resources[0].status.failed > 0))
+          retries: "{{ (job_timeout | default(600) / 10) | int }}"
+          delay: 10
+          loop: "{{ tenant_jobs }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        # - name: Get tenant creation job logs
+        #   kubernetes.core.k8s_log:
+        #     name: "create-{{ item.name }}-site-{{ job_timestamp }}"
+        #     namespace: "{{ kubernetes_namespace }}"
+        #     kubeconfig: "{{ kubeconfig }}"
+        #     kind: Job
+        #   register: tenant_job_logs
+        #   loop: "{{ tenant_jobs }}"
+        #   loop_control:
+        #     label: "{{ item.name }}"
+        #   ignore_errors: true
+
+        # - name: Display tenant creation job logs
+        #   debug:
+        #     msg:
+        #       - "=== Logs for {{ item.item.name }} ==="
+        #       - "{{ item.log.split('\n') if item.log is defined else 'No logs available' }}"
+        #   loop: "{{ tenant_job_logs.results }}"
+        #   loop_control:
+        #     label: "{{ item.item.name }}"
+
+        - name: Check for failed tenant jobs
+          set_fact:
+            failed_tenant_jobs: "{{ tenant_job_status.results | selectattr('resources', 'defined') | selectattr('resources', 'ne', []) | map(attribute='resources') | map('first') | selectattr('status.failed', 'defined') | selectattr('status.failed', 'gt', 0) | list }}"
+
+        - name: Fail if any tenant creation jobs failed
+          fail:
+            msg: "One or more tenant creation jobs failed. Check logs above for details."
+          when: failed_tenant_jobs | length > 0
+
+        - name: Tenant creation completed successfully
+          debug:
+            msg: "Successfully created tenants: {{ tenant_jobs | map(attribute='name') | join(', ') }}"
+
+    - name: Skipping tenant creation
+      debug:
+        msg: "Tenant creation skipped by user or not required"
+      when: not (first_install | bool)
+
+  rescue:
+    - name: Tenant creation failed
+      debug:
+        msg: "Tenant creation failed. Check logs above for details."
+      
+    - name: Fail the playbook
+      fail:
+        msg: "Tenant creation failed"

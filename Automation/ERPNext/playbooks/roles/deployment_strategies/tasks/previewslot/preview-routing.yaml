@@ -1,0 +1,69 @@
+# ==================== CREATE PREVIEW ACCESS WITH TRAEFIK HOST REWRITE ====================
+
+# Create Traefik Middlewares to rewrite Host header
+- name: Create Traefik middlewares for host rewriting
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: Middleware
+      metadata:
+        name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        headers:
+          customRequestHeaders:
+            Host: "{{ item.production }}"
+  loop: "{{ preview_domain_mapping }}"
+
+# Create preview IngressRoutes pointing to the target environment
+- name: Create preview IngressRoutes
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        entryPoints:
+          - websecure
+        routes:
+          - match: "Host(`{{ item.preview }}`)"
+            kind: Rule
+            services:
+              - name: "{{ helm_release_name }}-{{ target_env }}-erpnext"
+                port: 8080
+            middlewares:
+              - name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+                namespace: "{{ kubernetes_namespace }}"
+        tls:
+          secretName: "{{ preview_tls_secret_name }}"
+  loop: "{{ preview_domain_mapping }}"
+
+# # =============== HC ENDPOINTS ========================
+# - name: Health check preview endpoints
+#   ansible.builtin.uri:
+#     url: "https://{{ item.preview }}/api/v2/method/ping"
+#     validate_certs: no
+#     status_code: 200
+#     timeout: 10
+#   register: health_check
+#   retries: 5
+#   delay: 5
+#   ignore_errors: yes
+#   loop: "{{ preview_domain_mapping }}"
+
+# - name: Display health check results
+#   ansible.builtin.debug:
+#     msg: |
+#       =======================================
+#       Preview Health Check Results:
+#       =======================================
+#       {% for result in health_check.results %}
+#       {{ result.item.preview }}: {{ '[SUCCESS] HEALTHY (200 OK)' if result.status == 200 else '[ERROR] (' + result.status|string + ')' }}
+#       {% endfor %}
+#       =======================================

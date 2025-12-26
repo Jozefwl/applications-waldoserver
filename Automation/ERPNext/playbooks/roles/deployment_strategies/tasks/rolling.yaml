@@ -1,61 +1,113 @@
 ---
 - name: Rolling Update Strategy
   block:
-    - name: Display image info
+    - name: Display strategy info
       debug:
         msg: |
+          ROLLING STRATEGY deployment
           image tag: {{ new_erpnext_image_tag }}
+          release name: {{ helm_release_name }}
+          namespace: {{ kubernetes_namespace }}
+          chart: {{ helm_chart_path }}
+    
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
 
-    - name: Update Helm values for rolling strategy
-      set_fact:
-        helm_values:
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    - name: Define the helm values patch
+      ansible.builtin.set_fact:
+        helm_patch:
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
           deploymentStrategy:
-            type: rolling
-            parameters:
-              maxUnavailable: 0
-              maxSurge: 1
+            type: 
+              type: RollingUpdate  # This maps to .Values.deploymentStrategy.type
+
+    - name: Merge rolling strategy with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig_path: "{{ kubeconfig }}"
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
         values: "{{ helm_values }}"
-        set_values:
-          - value: "image.tag={{ new_erpnext_image_tag }}"
-            value_type: string
         state: present
         wait: true
-        wait_timeout: 600
+        wait_timeout: 600s
         atomic: true  # Automatically rolls back on failure
       register: helm_release
 
-    - name: Wait for deployment to stabilize
+    # - name: Display debug message
+    #   debug:
+    #     msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
+
+    # - name: Read helm values file
+    #   ansible.builtin.slurp:
+    #     src: "{{ helm_chart_path }}/values.yaml"
+    #   register: helmchart_values_raw
+
+    # - name: Parse values into a fact
+    #   ansible.builtin.set_fact:
+    #     helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    # - name: Display debug message
+    #   debug:
+    #     msg: "tenant https://{{ helmchart_values.ingress.hosts[0].host }}/"
+
+    - name: Wait for all jobs in namespace to complete
+      block:
+      - name: Get all jobs in namespace
+        kubernetes.core.k8s_info:
+          kubeconfig: "{{ kubeconfig }}"
+          kind: Job
+          namespace: "{{ kubernetes_namespace }}"
+        register: all_jobs
+
+    - name: Wait for each job to complete
       kubernetes.core.k8s_info:
         kubeconfig: "{{ kubeconfig }}"
-        kind: Deployment
+        kind: Job
         namespace: "{{ kubernetes_namespace }}"
-        name: "{{ helm_release_name }}-nginx"
-      register: deployment_status
-      until: >
-        deployment_status.resources | length > 0 and
-        deployment_status.resources[0].status.readyReplicas is defined and
-        deployment_status.resources[0].status.readyReplicas == deployment_status.resources[0].spec.replicas and
-        deployment_status.resources[0].status.updatedReplicas is defined and
-        deployment_status.resources[0].status.updatedReplicas == deployment_status.resources[0].spec.replicas
-      retries: 60
+        name: "{{ item.metadata.name }}"
+      loop: "{{ all_jobs.resources }}"
+      register: job_wait
+      until: 
+        - job_wait.resources[0].status.succeeded | default(0) > 0
+        # OR job_wait.resources[0].status.failed | default(0) > 0
+      retries: 100
+      delay: 7
+      loop_control:
+        label: "{{ item.metadata.name }}"
+
+    - name: Ping first tenant until it's available
+      ansible.builtin.shell: |
+        curl -s -o /dev/null -w "%{http_code}" "https://{{ helmchart_values.ingress.hosts[0].host }}/"
+      register: tenant_check
+      retries: 100
       delay: 5
+      until: tenant_check.stdout | int < 400
       when: helm_release is succeeded
 
-    - name: Display release status
-      debug:
-        msg: "Helm release status: {{ helm_release.status }}"
+
+    # - name: Display release status
+    #   debug:
+    #     msg: "Helm release status: {{ helm_release.status }}"
 
   rescue:
-    - name: Display rollback message
-      debug:
-        msg: "Deployment failed. Helm atomic rollback should have been triggered automatically."
+    - name: Confirm rollback deployment
+      pause:
+        prompt: |
+          -------------- ROLLBACK AFTER HELM FAILURE --------------
+          Press enter to continue or Ctrl+C to abort
+      when: helm_release is failed
 
     - name: Manual rollback if atomic failed
       kubernetes.core.helm:
@@ -74,6 +126,7 @@
       ignore_errors: true
       when: rollback_result is failed
 
-    - name: Fail the playbook after rollback attempt
+    - name: Display fail message
       fail:
         msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."
+      when: helm_release is failed

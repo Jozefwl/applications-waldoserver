@@ -6,57 +6,69 @@
         msg: |
           Deploying with RECREATE strategy
           !!! WARNING: This will cause full downtime !!!
-          - Stops all pods immediately
-          - Starts new pods
-          - Fastest deployment/rollback
-          - Image tag: {{ new_erpnext_image_tag }}
 
     - name: Confirm recreate deployment
       pause:
         prompt: |
-          !!! RECREATE STRATEGY WILL CAUSE DOWNTIME !!!
-          This deployment will:
-          1. Stop ALL running ERPNext pods
-          2. Start new pods with new version
-          3. Cause application unavailability
-          
           Press enter to continue or Ctrl+C to abort
-      when: not force_recreate | default(false) | bool
+      when: not (force_recreate | default(false) | bool)
 
-    - name: Update Helm values for recreate strategy
-      set_fact:
-        helm_values:
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
+    - name: Define the helm values patch
+      ansible.builtin.set_fact:
+        helm_patch:
+          image:
+            tag: "{{ new_erpnext_image_tag }}"
           deploymentStrategy:
-            type: recreate
-            parameters: {}
+            type: 
+              type: Recreate  # This maps to .Values.deploymentStrategy.type
+
+    - name: Merge recreate strategy with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
     - name: Deploy/upgrade ERPNext with recreate strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
         chart_ref: "{{ helm_chart_path }}"
         release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
         values: "{{ helm_values }}"
-        set_values:
-          - value: "image.tag={{ new_erpnext_image_tag }}"
-            value_type: string
         state: present
         wait: true
-        wait_condition:
-          type: "Available"
-          status: "True"
-        wait_timeout: 600
+        wait_timeout: 600s
         atomic: true
       register: helm_release
 
-    - name: Record downtime duration
-      debug:
-        msg: "Downtime occurred during recreate deployment. Check logs for duration."
+      # ==================== WAIT FOR JOBS ====================
+    - name: Wait for jobs to be completed
+      ansible.builtin.include_tasks: shared/wait-for-jobs.yaml
+
+      # ==================== PING FIRST TENANT ====================
+    - name: Ping first tenant until it's available
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
 
   rescue:
+    - name: Confirm rollback deployment
+      pause:
+        prompt: |
+          -------------- ROLLBACK AFTER HELM FAILURE --------------
+          Press enter to continue or Ctrl+C to abort
+      when: helm_release is failed
+
     - name: Rollback on failure
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
         release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
         state: present
-        atomic_rollback: true
+      register: rollback_result
       ignore_errors: true

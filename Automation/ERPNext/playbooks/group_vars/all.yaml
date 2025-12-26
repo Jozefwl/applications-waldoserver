@@ -1,6 +1,47 @@
-deployment_strategy: rolling
+# Common config
+deployment_strategy: bluegreen
 kubernetes_namespace: erpnext
-helm_release_name: erpnext
+helm_release_name: frappe-bench
 helm_chart_path: "{{ playbook_dir }}/../../../Applications/ERPNext/erpnext-official/erpnext"
-new_erpnext_image_tag: v15.87.2
+deployment_tag: production
+new_erpnext_image_tag: v15.87.1
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
+first_install: false
+
+# ============================================
+# BLUE-GREEN DEPLOYMENT CONFIGURATION
+# ============================================
+
+# DEBUG VARS !!! DONT USE ============================================
+
+# target_env: blue
+# #     active_release: "{{ helm_release_name + '-green' if green_deployed else helm_release_name + '-blue' if blue_deployed else 'none' }}"
+# #     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
+# active_release: "{{ helm_release_name + '-green' }}"
+# target_release: "{{ helm_release_name + '-blue' }}"
+# active_production_environment: frappe-bench-blue-erpnext
+
+# END OF DEBUG VARS ==================================================
+
+# Force deployment flags (skip confirmation prompts)
+force_deployment: false    # Skip deployment confirmation
+force_switch: false        # Skip traffic switch confirmation
+cleanup_old_env: false     # Auto-delete old environment after switch
+
+# Timeouts (in seconds)
+pod_ready_timeout: 600     # 10 minutes for pods to be ready
+job_timeout: 1000          # 15 minutes for jobs to complete
+health_check_retries: 20   # Health check attempts after deployment
+
+# Preview to production domain mapping
+preview_domain_mapping:
+  - preview: preview.tenant1.erp.waldhauser.sk
+    production: tenant1.erp.waldhauser.sk
+  - preview: preview.tenant2.erp.waldhauser.sk
+    production: tenant2.erp.waldhauser.sk
+  - preview: preview.tenant3.erp.waldhauser.sk
+    production: tenant3.erp.waldhauser.sk
+
+# TLS configuration
+tls_secret_name: erpnext-tls
+preview_tls_secret_name: preview-tls

@@ -1,0 +1,136 @@
+- name: Delete old fix-config job if it exists
+  kubernetes.core.k8s:
+    state: absent
+    kind: Job
+    name: "fix-config-{{ dest_release }}-shadow"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
+  when: deployment_strategy=="shadow"
+
+- name: Create fix-config job
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: "fix-config-{{ dest_release }}-shadow"
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        backoffLimit: 2
+        ttlSecondsAfterFinished: 3600
+        template:
+          spec:
+            serviceAccountName: default
+            containers:
+            - name: fix
+              image: alpine:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  apk add --no-cache jq
+                  SITES="/dst/frappe-bench" # Ensure /sites is included if that's where configs live
+                  
+                  DB_HOST="mariadb-shadow.dbs.svc.cluster.local"
+
+                  if [ ! -d "$SITES" ]; then echo "ERROR: $SITES not found"; exit 1; fi
+
+                  fix_file() {
+                    local file=$1
+                    echo "Patching db_host in $file..."
+                    # Only targeting the db_host key
+                    jq --arg db "$DB_HOST" '.db_host = $db' "$file" > /tmp/cfg && mv /tmp/cfg "$file"
+                  }
+
+                  # 1. Fix common config
+                  [ -f "$SITES/common_site_config.json" ] && fix_file "$SITES/common_site_config.json"
+
+                  # 2. Fix all tenant configs
+                  for dir in "$SITES"/*/; do
+                    if [ -f "${dir}site_config.json" ]; then
+                      fix_file "${dir}site_config.json"
+                    fi
+                  done
+                  echo "Done. Only db_host was updated."
+                # This one was also supposed to fix redis, but didn't work
+                # - |
+                #   apk add --no-cache jq
+                #   SITES="/dst/frappe-bench"
+                  
+                #   DB_HOST="mariadb-shadow.dbs.svc.cluster.local"
+                #   REDIS_CACHE="redis://frappe-bench-redis-cache-master.{{ kubernetes_namespace }}.svc.cluster.local:6379"
+                #   REDIS_QUEUE="redis://frappe-bench-shadow-redis-queue-master.{{ kubernetes_namespace }}.svc.cluster.local:6379"
+                #   REDIS_SOCKETIO="redis://frappe-bench-redis-cache-master.{{ kubernetes_namespace }}.svc.cluster.local:6379"
+
+                #   if [ ! -d "$SITES" ]; then echo "ERROR: $SITES not found"; exit 1; fi
+
+                #   fix_file() {
+                #     local file=$1
+                #     echo "Patching $file..."
+                #     jq --arg db "$DB_HOST" --arg rc "$REDIS_CACHE" --arg rq "$REDIS_QUEUE" --arg rs "$REDIS_SOCKETIO" \
+                #     '.db_host = $db | .redis_cache = $rc | .redis_queue = $rq | .redis_socketio = $rs' \
+                #     "$file" > /tmp/cfg && mv /tmp/cfg "$file"
+                #   }
+
+                #   # 1. Fix common config
+                #   [ -f "$SITES/common_site_config.json" ] && fix_file "$SITES/common_site_config.json"
+
+                #   # 2. Fix all tenant configs
+                #   for dir in "$SITES"/*/; do
+                #     if [ -f "${dir}site_config.json" ]; then
+                #       fix_file "${dir}site_config.json"
+                #     fi
+                #   done
+                #   echo "Done."
+              volumeMounts:
+              - name: dst
+                mountPath: /dst/frappe-bench
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+            restartPolicy: OnFailure
+            volumes:
+            - name: dst
+              persistentVolumeClaim:
+                claimName: "{{ dest_pvc }}"
+  when: deployment_strategy=="shadow"
+
+- name: Wait for jobs to complete # We must wait twice because the first job has to complete before running the second one... 
+  include_tasks: roles/deployment_strategies/tasks/shared/wait-for-jobs.yaml # also don't create mirroring that comes after this task for shadow instantly, because we don't want to write into production database
+  when: deployment_strategy=="shadow" 
+#//home/jozef/Gity/applications-waldoserver/Automation/ERPNext/playbooks/roles/deployment_strategies/tasks/shared/wait-for-jobs.yaml
+
+
+# - name: Restart Shadow ERPNext pods to apply new config
+#   kubernetes.core.k8s:
+#     kubeconfig: "{{ kubeconfig }}"
+#     definition:
+#       apiVersion: apps/v1
+#       kind: Deployment
+#       metadata:
+#         name: "{{ item }}"
+#         namespace: "{{ kubernetes_namespace }}"
+#       spec:
+#         template:
+#           metadata:
+#             annotations:
+#               # This annotation forces a restart by changing the pod spec
+#               ansible.kubernetes.io/restartedAt: "{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}"
+#   loop:
+#     - "{{ dest_release }}-erpnext-worker-default"
+#     - "{{ dest_release }}-erpnext-worker-long"
+#     - "{{ dest_release }}-erpnext-worker-short"
+#     - "{{ dest_release }}-erpnext-web"
+#     - "{{ dest_release }}-gunicorn"
+#     - "{{ dest_release }}-nginx"
+#   when: deployment_strategy == "shadow"
+
+# - name: Wait until all is restarted
+#   pause: #  TODO: fix
+#     seconds: 35 # Hardcoded interval is not cool 
