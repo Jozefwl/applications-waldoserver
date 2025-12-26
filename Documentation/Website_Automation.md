@@ -28,7 +28,7 @@ Necessary evils:
 
 ## 1. Go to playbooks dir:
 ```bash
-cd Applications/Website/automation/playbooks/
+cd Automation/Website/automation/playbooks/
 ```
 
 ## 2. Run funky command:
