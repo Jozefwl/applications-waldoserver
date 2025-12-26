@@ -20,7 +20,7 @@ function formatISO(date) {
 
 // Configuration
 const CHECK_INTERVAL = 1000; // wait time between checks in ms
-const OUTPUT_FILE = process.argv[2] || `rollback_rolling1_resource_monitoring_${Date.now()}.csv`;
+const OUTPUT_FILE = process.argv[2] || `resource_monitoring_${Date.now()}.csv`;
 const PROMETHEUS_URL = process.argv[3] || 'http://localhost:9090';
 
 // State tracking

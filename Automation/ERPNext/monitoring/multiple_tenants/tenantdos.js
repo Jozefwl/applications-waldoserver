@@ -27,7 +27,7 @@ const TENANTS = [
     'https://tenant3.erp.waldhauser.sk/api/v2/method/ping'
 ];
 const CHECK_INTERVAL = 10; // Minimum time between complete cycles (in ms)
-const TIMEOUT = 1000; // 10 seconds timeout per request
+const TIMEOUT = 1000; // 1 seconds timeout per request
 const OUTPUT_FILE = process.argv[2] || `dos_${Date.now()}.csv`;
 
 // State tracking for each tenant
@@ -113,13 +113,13 @@ function performHealthCheck(tenantUrl, tenantStat) {
                     tenantStat.lastFailureTime = null;
                 }
                 
-                process.stdout.write(`✓ ${responseTime.toFixed(0)}ms `);
+                process.stdout.write(`[SUCCESS] ${responseTime.toFixed(0)}ms `);
                 resolve({ responseTime: responseTime.toFixed(2), status: `HTTP${res.statusCode}` });
             } else {
                 // Non-success status code
                 tenantStat.failedChecks++;
                 if (!tenantStat.lastFailureTime) tenantStat.lastFailureTime = Date.now();
-                process.stdout.write(`✗ HTTP${res.statusCode} `);
+                process.stdout.write(`[ERROR] HTTP${res.statusCode} `);
                 resolve({ responseTime: 'NA', status: `HTTP${res.statusCode}` });
             }
             
@@ -134,7 +134,7 @@ function performHealthCheck(tenantUrl, tenantStat) {
             tenantStat.failedChecks++;
             if (!tenantStat.lastFailureTime) tenantStat.lastFailureTime = Date.now();
             const errorMsg = err.code || 'ERR';
-            process.stdout.write(`✗ ${errorMsg} `);
+            process.stdout.write(`[ERROR] ${errorMsg} `);
             resolve({ responseTime: 'NA', status: errorMsg });
         });
         
@@ -142,7 +142,7 @@ function performHealthCheck(tenantUrl, tenantStat) {
             req.destroy();
             tenantStat.failedChecks++;
             if (!tenantStat.lastFailureTime) tenantStat.lastFailureTime = Date.now();
-            process.stdout.write(`✗ Timeout `);
+            process.stdout.write(`[ERROR] Timeout `);
             resolve({ responseTime: 'NA', status: 'Timeout' });
         });
         
