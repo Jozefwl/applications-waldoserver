@@ -43,6 +43,9 @@
             services:
               - name: "{{ helm_release_name }}-{{ current_env }}-erpnext"
                 port: 8080
+            middlewares:
+              - name: "preview-rewrite-{{ item.production | replace('.', '-') }}"
+                namespace: "{{ kubernetes_namespace }}"
         tls:
           secretName: "{{ preview_tls_secret_name }}"
   loop: "{{ preview_domain_mapping }}"

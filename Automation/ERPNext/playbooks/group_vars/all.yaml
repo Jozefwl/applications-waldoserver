@@ -19,6 +19,7 @@ first_install: false
 # #     target_release: "{{ helm_release_name + '-blue' if green_deployed else helm_release_name + '-green' }}"
 # active_release: "{{ helm_release_name + '-green' }}"
 # target_release: "{{ helm_release_name + '-blue' }}"
+# active_production_environment: frappe-bench-blue-erpnext
 
 # END OF DEBUG VARS ==================================================
 

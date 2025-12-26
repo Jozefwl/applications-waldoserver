@@ -1,13 +1,13 @@
 - name: Display error state
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
+      =======================================
       ERROR: Both Environments Deployed
-      ════════════════════════════════════════
+      =======================================
       Both blue and green environments are
       currently deployed. This is not a valid
       state for blue-green deployment.
-      ════════════════════════════════════════
+      =======================================
 
 - name: Get current active environment
   include_tasks: get-active-environment.yaml
