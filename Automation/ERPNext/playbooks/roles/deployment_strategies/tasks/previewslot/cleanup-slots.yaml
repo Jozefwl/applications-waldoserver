@@ -9,15 +9,18 @@
       state for blue-green deployment.
       ════════════════════════════════════════
 
+- name: Get current active environment
+  include_tasks: get-active-environment.yaml
+
 - name: Show cleanup options
   ansible.builtin.pause:
     prompt: |
-      ════════════════════════════════════════
+      =======================================
       Cleanup Options
-      ════════════════════════════════════════
+      =======================================
 
       INFO:
-      Placeholder shows where production and preview slot is
+      Production environment: {{ active_production_environment }}
 
       What would you like to do?
 
@@ -59,7 +62,6 @@
         - "sync-green-to-blue"
         - "sync-blue-to-green"
       ignore_errors: true
-      when: current_env != 'none'
 
     - name: Remove blue environment
       kubernetes.core.helm:
@@ -72,10 +74,10 @@
     - name: Blue removed
       ansible.builtin.debug:
         msg: |
-          ════════════════════════════════════════
-          ✓ Blue environment removed
+          =======================================
+          [SUCCESS] Blue environment removed
           You can now run your deployment again
-          ════════════════════════════════════════
+          =======================================
   when: cleanup_choice.user_input == '1'
 
 # ==================== REMOVE GREEN ====================
@@ -92,6 +94,18 @@
           Press ENTER to continue, or Ctrl+C to abort
       when: not force_deployment
 
+    - name: Remove sync jobs that bind PVCs
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        namespace: "{{ kubernetes_namespace }}"
+        state: absent
+        kind: Job
+        name: "{{ item }}"
+      loop:
+        - "sync-green-to-blue"
+        - "sync-blue-to-green"
+      ignore_errors: true
+
     - name: Remove green environment
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-green"
@@ -103,21 +117,31 @@
     - name: Green removed
       ansible.builtin.debug:
         msg: |
-          ════════════════════════════════════════
-          ✓ Green environment removed
+          =======================================
+          [SUCCESS] Green environment removed
           You can now run your deployment again
-          ════════════════════════════════════════
+          =======================================
   when: cleanup_choice.user_input == '2'
 
 
 # ==================== SWITCH TRAFFIC ====================
-- name: Operation cancelled
-  ansible.builtin.debug:
-    msg: |
-      ════════════════════════════════════════
-      Operation cancelled
-      NOT YET IMPLEMENTED !!!
-      ════════════════════════════════════════
+- block:
+  - name: Active environment is green
+    ansible.builtin.set_fact:
+      current_env: green
+      target_env: blue
+     # frappe-bench-green-erpnext
+    when: active_production_environment == "{{ helm_release_name }}-green-{{ kubernetes_namespace }}"
+
+  - name: Active environment is blue
+    ansible.builtin.set_fact:
+      current_env: blue
+      target_env: green
+     # frappe-bench-green-erpnext
+    when: active_production_environment == "{{ helm_release_name }}-blue-{{ kubernetes_namespace }}"
+
+  - name: Switch traffic
+    include_tasks: switch-production-traffic.yaml
   when: cleanup_choice.user_input == '3'
 
 

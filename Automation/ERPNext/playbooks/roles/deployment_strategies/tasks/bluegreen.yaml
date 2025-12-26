@@ -58,16 +58,21 @@
           Deploying To: {{ target_env }} ({{ target_release }})
           ===========================================
 
+
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing Helm values
+      ansible.builtin.slurp:
+        src: "{{ helm_chart_path }}/values.yaml"
+      register: helmchart_values_raw
+
+    - name: Parse existing values into a fact
+      ansible.builtin.set_fact:
+        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+
     # ==================== DEPLOY NEW ENVIRONMENT ====================
-    - name: Deploy {{ target_env }} environment
-      kubernetes.core.helm:
-        name: "{{ target_release }}"
-        chart_ref: "{{ helm_chart_path }}"
-        release_namespace: "{{ kubernetes_namespace }}"
-        kubeconfig: "{{ kubeconfig }}"
-        values_files:
-          - "{{ helm_chart_path }}/values.yaml"
-        values:
+    - name: Define {{ target_env }} helm values patch
+      ansible.builtin.set_fact:
+        target_env_helm_patch:
           environment:
             name: "{{ target_env }}"
           ingress:
@@ -75,8 +80,20 @@
           image:
             tag: "{{ new_erpnext_image_tag }}"
           jobs:
-            createSite: # dont run lengthy job when we copy files anyway
+            createSite:  # dont run lengthy job when we copy files anyway
               enabled: false
+
+    - name: Merge {{ target_env }} values with existing values
+      ansible.builtin.set_fact:
+        helm_values: "{{ existing_helm_values | combine(target_env_helm_patch, recursive=True) }}"
+
+    - name: Deploy {{ target_env }} environment
+      kubernetes.core.helm:
+        name: "{{ target_release }}"
+        chart_ref: "{{ helm_chart_path }}"
+        release_namespace: "{{ kubernetes_namespace }}"
+        kubeconfig: "{{ kubeconfig }}"
+        values: "{{ helm_values }}"
         wait: true
         wait_timeout: 10m
         state: present
@@ -101,6 +118,8 @@
           metadata:
             name: erpnext-production
             namespace: "{{ kubernetes_namespace }}"
+            labels:
+              environment: production
             annotations:
               kubernetes.io/ingress.class: traefik
               cert-manager.io/cluster-issuer: letsencrypt-prod

@@ -22,8 +22,7 @@
       Or Ctrl+C then 'A' to abort
   when: not force_switch | default(false)
 
-
-- name: Create/Update production IngressRoutes (TraefikIngressRoute)
+- name: Create/Update preview IngressRoutes (pointing to {{ current_env }})
   kubernetes.core.k8s:
     kubeconfig: "{{ kubeconfig }}"
     state: present
@@ -31,58 +30,85 @@
       apiVersion: traefik.io/v1alpha1
       kind: IngressRoute
       metadata:
-        name: "erpnext-production-{{ item.production | replace('.', '-') }}"
+        name: "erpnext-preview-{{ item.production | replace('.', '-') }}"
         namespace: "{{ kubernetes_namespace }}"
+        labels:
+          domain: "{{ item.preview }}"
       spec:
         entryPoints:
           - websecure
         routes:
-          - match: "Host(`{{ item.production }}`)"
+          - match: "Host(`{{ item.preview }}`)"
             kind: Rule
             services:
-              - name: "{{ helm_release_name }}-{{ target_env }}-erpnext"
+              - name: "{{ helm_release_name }}-{{ current_env }}-erpnext"
                 port: 8080
         tls:
           secretName: "{{ preview_tls_secret_name }}"
   loop: "{{ preview_domain_mapping }}"
+  loop_control:
+    extended: yes
 
-
-- name: Display production traffic configuration
-  ansible.builtin.debug:
-    msg: |
-      ════════════════════════════════════════════════════════════════════════════════════
-      ✓ Production IngressRoutes Created
-      ════════════════════════════════════════════════════════════════════════════════════
-      
-      Active Environment: {{ target_env | upper }}
-      Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
-      
-      Production Routing:
-      {% for mapping in preview_domain_mapping %}
-      https://{{ mapping.production }}
-        ↓
-      {{ helm_release_name }}-{{ target_env }}-erpnext:8080 ✓
-      {% endfor %}
-      
-      Preview Routing (unchanged):
-      {% for mapping in preview_domain_mapping %}
-      https://{{ mapping.preview }}
-        ↓
-      preview-nginx-proxy:9090 (Host rewrite)
-        ↓
-      {{ helm_release_name }}-{{ target_env }}-erpnext:8080 ✓
-      {% endfor %}
-      ════════════════════════════════════════════════════════════════════════════════════
-
-
-- name: Wait for production ingress to propagate
-  ansible.builtin.pause:
-    seconds: 10
-
+- name: Apply production ingress (pointing to {{ target_env }})
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: erpnext-production
+        namespace: "{{ kubernetes_namespace }}"
+        labels:
+          environment: production
+        annotations:
+          kubernetes.io/ingress.class: traefik
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+      spec:
+        ingressClassName: traefik
+        tls:
+          - secretName: erpnext-tls
+            hosts:
+              - tenant1.erp.waldhauser.sk
+              - tenant2.erp.waldhauser.sk
+              - tenant3.erp.waldhauser.sk
+        rules:
+          - host: tenant1.erp.waldhauser.sk
+            http:
+              paths:
+                - path: /
+                  pathType: ImplementationSpecific
+                  backend:
+                    service:
+                      name: "{{ helm_release_name }}-{{ target_env }}-{{ kubernetes_namespace }}"
+                      port:
+                        number: 8080
+          - host: tenant2.erp.waldhauser.sk
+            http:
+              paths:
+                - path: /
+                  pathType: ImplementationSpecific
+                  backend:
+                    service:
+                      name: "{{ helm_release_name }}-{{ target_env }}-{{ kubernetes_namespace }}"
+                      port:
+                        number: 8080
+          - host: tenant3.erp.waldhauser.sk
+            http:
+              paths:
+                - path: /
+                  pathType: ImplementationSpecific
+                  backend:
+                    service:
+                      name: "{{ helm_release_name }}-{{ target_env }}-{{ kubernetes_namespace }}"
+                      port:
+                        number: 8080
 
 - name: Verify production endpoints
   ansible.builtin.uri:
-    url: "https://{{ item.production }}/api/method/frappe.ping"
+    url: "https://{{ item.production }}/api/v2/method/ping"
     validate_certs: no
     status_code: 200
     timeout: 10
@@ -92,27 +118,3 @@
   ignore_errors: yes
   loop: "{{ preview_domain_mapping }}"
 
-
-- name: Display production traffic switch results
-  ansible.builtin.debug:
-    msg: |
-      ════════════════════════════════════════════════════════════════════════════════════
-      ✓ Production Traffic Switched Successfully!
-      ════════════════════════════════════════════════════════════════════════════════════
-      
-      Active Environment: {{ target_env | upper }}
-      Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
-      
-      Production Health Check:
-      {% for result in prod_check.results %}
-      {{ result.item.production }}: {{ '✓ HEALTHY (200 OK)' if result.status == 200 else '✗ FAILED (' + result.status|string + ')' }}
-      {% endfor %}
-      
-      Summary:
-      ✓ Preview routes continue to use nginx proxy with Host rewriting
-      ✓ Production routes now point to {{ target_env | upper }} environment
-      ✓ Old environment traffic fully switched
-      ✓ Both environments can coexist independently
-      
-      To rollback: Run deployment with: current_env={{ target_env }} target_env={{ current_env }}
-      ════════════════════════════════════════════════════════════════════════════════════

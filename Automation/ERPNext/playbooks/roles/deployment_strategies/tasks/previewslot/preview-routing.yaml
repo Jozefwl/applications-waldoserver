@@ -44,30 +44,10 @@
           secretName: "{{ preview_tls_secret_name }}"
   loop: "{{ preview_domain_mapping }}"
 
-
-# Display preview configuration
-- name: Display preview setup
-  ansible.builtin.debug:
-    msg: |
-      ════════════════════════════════════════════════════════════════════════════════════
-      ✓ Preview IngressRoutes Created with Traefik host rewrite
-      ════════════════════════════════════════════════════════════════════════════════════
-      
-      Request flow example:
-      https://preview.tenant1.erp.waldhauser.sk
-        ↓ (Traefik routes to target service)
-      {{ helm_release_name }}-{{ target_env }}-erpnext:8080
-        ↓ (Host header rewritten by Middleware)
-      Host: tenant1.erp.waldhauser.sk
-      
-      TLS managed by cert-manager automatically
-      No extra reverse proxy required
-      ════════════════════════════════════════════════════════════════════════════════════
-
-# # Test preview endpoints
-# - name: Test preview endpoints
+# # =============== HC ENDPOINTS ========================
+# - name: Health check preview endpoints
 #   ansible.builtin.uri:
-#     url: "https://{{ item.preview }}/api/method/frappe.ping"
+#     url: "https://{{ item.preview }}/api/v2/method/ping"
 #     validate_certs: no
 #     status_code: 200
 #     timeout: 10
@@ -80,10 +60,10 @@
 # - name: Display health check results
 #   ansible.builtin.debug:
 #     msg: |
-#       ════════════════════════════════════════
+#       =======================================
 #       Preview Health Check Results:
-#       ════════════════════════════════════════
+#       =======================================
 #       {% for result in health_check.results %}
-#       {{ result.item.preview }}: {{ '✓ HEALTHY (200 OK)' if result.status == 200 else '✗ ERROR (' + result.status|string + ')' }}
+#       {{ result.item.preview }}: {{ '[SUCCESS] HEALTHY (200 OK)' if result.status == 200 else '[ERROR] (' + result.status|string + ')' }}
 #       {% endfor %}
-#       ════════════════════════════════════════
+#       =======================================

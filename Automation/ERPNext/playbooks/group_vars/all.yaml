@@ -43,4 +43,4 @@ preview_domain_mapping:
 
 # TLS configuration
 tls_secret_name: erpnext-tls
-preview_tls_secret_name: erpnext-preview-tls
+preview_tls_secret_name: preview-tls
