@@ -176,10 +176,12 @@
       ansible.builtin.include_tasks: previewslot/preview-routing.yaml
       when: not (first_install | bool)
 
-      # ==================== CREATE TENANTS ==================== TODO:FIX
-    # - name: Create additional tenants
-    #   ansible.builtin.include_tasks: extra-tenants.yaml
-    #   when: first_install | bool
+      # ==================== CREATE TENANTS ==================== 
+      # TODO: FIX
+      # This is done manually using kubectl apply -f /Applications/ERPNext/custom_jobs/create-tenant1.yaml
+      # - name: Create additional tenants
+      #   ansible.builtin.include_tasks: extra-tenants.yaml
+      #   when: first_install | bool
 
       # ==================== SYNCHRONIZE PVCs ====================
     - name: Synchronize PVCs

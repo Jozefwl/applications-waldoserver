@@ -45,9 +45,6 @@
             tag: "{{ new_erpnext_image_tag }}"
           ingress:
             enabled: false  # no ingress, just traffic mirroring
-          persistence:
-            enabled: true
-            existingClaim: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
 
     - name: Merge shadow values with existing values
       ansible.builtin.set_fact:

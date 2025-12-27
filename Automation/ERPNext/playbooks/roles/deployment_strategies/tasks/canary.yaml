@@ -22,25 +22,6 @@
       ansible.builtin.set_fact:
         existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
-    # ==================== GET CURRENT INGRESS ====================
-    # - name: Get existing ingress configuration
-    #   kubernetes.core.k8s_info:
-    #     kind: Ingress
-    #     name: "{{ helm_release_name }}-erpnext"
-    #     namespace: "{{ kubernetes_namespace }}"
-    #     kubeconfig: "{{ kubeconfig }}"
-    #   register: existing_ingress
-    #   failed_when: existing_ingress.resources | length == 0
-
-    # - name: Extract tenant hosts from existing ingress
-    #   set_fact:
-    #     tenant_hosts: "{{ existing_ingress.resources[0].spec.rules | map(attribute='host') | list }}"
-    #     tls_secret: "{{ existing_ingress.resources[0].spec.tls[0].secretName }}"
-
-    # - name: Display detected tenants
-    #   debug:
-    #     msg: "Detected tenants: {{ tenant_hosts | join(', ') }}"
-
     # ==================== DEPLOY CANARY ====================
     - name: Define canary helm values patch
       ansible.builtin.set_fact:
@@ -51,18 +32,8 @@
           image:
             tag: "{{ new_erpnext_image_tag }}"
           replicaCount: 1  # Start with single replica for canary
-          nameOverride: "{{ helm_release_name }}-canary"
-          fullnameOverride: "{{ helm_release_name }}-canary"
-          service:
-            name: "{{ helm_release_name }}-canary-erpnext"
-            labels:
-              version: canary
-              traffic-split: "true"
           ingress:
             enabled: false  # We'll create ingress separately
-          persistence:
-            enabled: true
-            existingClaim: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
 
     - name: Merge canary values with existing values
       ansible.builtin.set_fact:
