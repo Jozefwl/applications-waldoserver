@@ -14,10 +14,10 @@
           services:
             - name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
               port: 8080
-              weight: 9  
+              weight: "{{ stable_weight }}"
             - name: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
               port: 8080
-              weight: 1   # 10% canary initially
+              weight: "{{ canary_weight }}"
 
 # =============== MAKE PRODUCTION INGRESSROUTE =================
 - name: Create IngressRoute for production

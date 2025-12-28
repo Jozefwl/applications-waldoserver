@@ -33,6 +33,11 @@ pod_ready_timeout: 600     # 10 minutes for pods to be ready
 job_timeout: 1000          # 15 minutes for jobs to complete
 health_check_retries: 20   # Health check attempts after deployment
 
+# Canary configuration
+# 1 = 10%, 2 = 20% .... 9 = 90%, 10 = 100%
+stable_weight: 9
+canary_weight: 1
+
 # Preview to production domain mapping
 preview_domain_mapping:
   - preview: preview.tenant1.erp.waldhauser.sk
