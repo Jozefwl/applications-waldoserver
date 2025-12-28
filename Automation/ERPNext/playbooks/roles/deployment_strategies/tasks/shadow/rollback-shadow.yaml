@@ -1,5 +1,5 @@
-# ================ WEIGHTED ROUND ROBIN ====================
-- name: Update TraefikService without Canary
+# ================= TRAFFIC MIRRORING =================
+- name: Update TraefikService for mirroring without shadow
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig }}"
@@ -7,17 +7,16 @@
       apiVersion: traefik.io/v1alpha1
       kind: TraefikService
       metadata:
-        name: frappe-bench-weighted
+        name: frappe-bench-mirror
         namespace: "{{ kubernetes_namespace }}"
       spec:
-        weighted:
-          services:
-            - name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
-              port: 8080
-              weight: 10  
+        mirroring:
+          # 1. Main Destination
+          name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
+          port: 8080
 
-# =============== MAKE PRODUCTION INGRESSROUTE =================
-- name: Update IngressRoute for production without Canary
+# ================= MAKE PRODUCTION INGRESSROUTE =================
+- name: Update IngressRoute for production without shadow
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig }}"
@@ -25,31 +24,27 @@
       apiVersion: traefik.io/v1alpha1
       kind: IngressRoute
       metadata:
-        name: frappe-bench-erpnext
+        name: frappe-bench-erpnext-route
         namespace: "{{ kubernetes_namespace }}"
       spec:
         entryPoints:
           - websecure
         routes:
-          - match: Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)
-          # Alternative for production use would be regex or ansible loop to make a variable for all these tenants...
+          - match: "Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)"
             kind: Rule
             services:
-              - name: frappe-bench-weighted
+              # Point the IngressRoute to the TraefikService created above
+              - name: frappe-bench-mirror
                 kind: TraefikService
+                port: 8080
         tls:
           secretName: erpnext-tls
 
-- name: Confirm rollback of Canary
+- name: Confirm rollback of Shadow
   pause: 
     prompt: |
-      Please confirm Canary rollback by pressing Ctrl+C then C
+      Please confirm Shadow rollback by pressing Ctrl+C then C
       Otherwise press Ctrl+C then A to not rollback
-
-- name: Set ansible facts for old blocking syncjob deletion
-  ansible.builtin.set_fact:
-    source_release: "{{ helm_release_name }}"
-    dest_release: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
 
 - name: Delete old sync job blocking PVC
   kubernetes.core.k8s:
@@ -60,11 +55,19 @@
     kubeconfig: "{{ kubeconfig }}"
   ignore_errors: yes
 
+- name: Delete old fix-config job blocking PVC
+  kubernetes.core.k8s:
+    state: absent
+    kind: Job
+    name: "fix-config-{{ dest_release }}-shadow"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
 
-# ============ ROLLBACK CANARY =================
-- name: Remove canary release
+# ============ ROLLBACK SHADOW =================
+- name: Remove shadow release
   kubernetes.core.helm:
-    name: "{{ helm_release_name }}-canary"
+    name: "{{ helm_release_name }}-shadow"
     kubeconfig_path: "{{ kubeconfig }}"
     release_namespace: "{{ kubernetes_namespace }}"
     state: absent

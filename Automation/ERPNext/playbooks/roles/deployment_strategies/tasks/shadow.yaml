@@ -50,6 +50,12 @@
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(shadow_helm_patch, recursive=True) }}"
 
+    # ==================== ROLLBACK SHADOW IF TAG IS SET ====================
+    - name: Rollback shadow when tag is set 
+      include_tasks: shadow/rollback-shadow.yaml
+      when: shadow_rollback | bool
+      ignore_errors: True
+
     # =========== COPY MARIADB ===============
     - name: Copy mariaDB from PROD -> SHADOW
       include_tasks: shadow/copy-mariadb.yaml
