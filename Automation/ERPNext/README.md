@@ -43,7 +43,7 @@ sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="can
 sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="shadow" 
 ```
 
-- Rollback Canary
+- Rollback Shadow
 
 ```bash
 sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="shadow" -e shadow_rollback=True

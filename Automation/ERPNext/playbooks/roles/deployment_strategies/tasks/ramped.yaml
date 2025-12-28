@@ -20,6 +20,7 @@
       ansible.builtin.set_fact:
         existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
 
+    # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Define the helm values patch
       ansible.builtin.set_fact:
         helm_patch:
