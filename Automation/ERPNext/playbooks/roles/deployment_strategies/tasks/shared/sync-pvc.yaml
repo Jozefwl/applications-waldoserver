@@ -172,6 +172,8 @@
 
 - name: Shadow syncjob
   include_tasks: ../shadow/syncjob-shadow.yaml
+  when: deployment_strategy == "shadow"
+  ignore_errors: True
 
 - name: Get sync job logs
   kubernetes.core.k8s_log:

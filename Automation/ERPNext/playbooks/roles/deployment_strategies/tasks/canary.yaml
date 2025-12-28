@@ -39,6 +39,12 @@
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(canary_helm_patch, recursive=True) }}"
 
+    # ==================== ROLLBACK CANARY IF TAG IS SET ====================
+    - name: Rollback canary when tag is set 
+      include_tasks: canary/rollback-canary.yaml
+      when: canary_rollback | bool
+      ignore_errors: True
+
     - name: Deploy canary release
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-canary"
@@ -61,7 +67,7 @@
       ansible.builtin.include_tasks: shared/sync-pvc.yaml
       vars:
         source_release: "{{ helm_release_name }}"
-        dest_release: "{{ helm_release_name }}-canary"
+        dest_release: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
 
     # ==================== CREATE CANARY ROUTING ====================
     - name: Create canary routing
