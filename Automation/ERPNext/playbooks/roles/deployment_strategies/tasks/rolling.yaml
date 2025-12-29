@@ -12,7 +12,7 @@
     
     # ==================== LOAD BASE VALUES ====================
     - name: Load existing HELM values
-      includ_tasks: shared/load-helm-values.yaml
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     - name: Define the helm values patch
       ansible.builtin.set_fact:

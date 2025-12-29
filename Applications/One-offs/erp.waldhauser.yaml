@@ -301,7 +301,7 @@ metadata:
   name: erp-waldhauser-cert
   namespace: apps
 spec:
-  secretName: erp-waldhauser-tls 
+  secretName: erp-waldhauser-cert 
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
@@ -327,7 +327,7 @@ spec:
   tls:
     - hosts:
         - erp.waldhauser.sk
-      secretName: erp-waldhauser-tls   # <--- ensure this secret exists in the erp-site namespace (see notes)
+      secretName: erp-waldhauser-cert   # <--- ensure this secret exists in the erp-site namespace (see notes)
   rules:
     - host: erp.waldhauser.sk
       http:

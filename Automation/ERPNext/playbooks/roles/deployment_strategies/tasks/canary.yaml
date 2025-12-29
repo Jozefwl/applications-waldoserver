@@ -14,7 +14,7 @@
 
     # ==================== LOAD BASE VALUES ====================
     - name: Load existing HELM values
-      includ_tasks: shared/load-helm-values.yaml
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY CANARY ====================
     - name: Define canary helm values patch

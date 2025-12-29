@@ -61,7 +61,7 @@
 
     # ==================== LOAD BASE VALUES ====================
     - name: Load existing HELM values
-      includ_tasks: shared/load-helm-values.yaml
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Define {{ target_env }} helm values patch
