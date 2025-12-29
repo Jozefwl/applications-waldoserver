@@ -33,6 +33,7 @@
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"

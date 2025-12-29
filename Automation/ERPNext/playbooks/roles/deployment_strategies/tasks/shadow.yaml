@@ -60,7 +60,7 @@
     - name: Copy mariaDB from PROD -> SHADOW
       include_tasks: shadow/copy-mariadb.yaml
 
-    # =========== DEPLOY SHADOW ===============
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy shadow release
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-shadow"

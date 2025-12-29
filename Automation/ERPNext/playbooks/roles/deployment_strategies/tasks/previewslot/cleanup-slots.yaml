@@ -5,8 +5,7 @@
       ERROR: Both Environments Deployed
       =======================================
       Both blue and green environments are
-      currently deployed. This is not a valid
-      state for blue-green deployment.
+      currently deployed. 
       =======================================
 
 - name: Get current active environment
@@ -27,7 +26,7 @@
       1) Remove BLUE environment
       2) Remove GREEN environment
       3) SWAP slots Blue <-> Green
-      3) Cancel (exit without changes)
+      4) Cancel (exit without changes)
 
       Enter your choice (1-3):
   register: cleanup_choice
@@ -46,7 +45,7 @@
 
           Helm release: {{ helm_release_name }}-blue
 
-          This may impact production traffic.
+          Production environment: {{ active_production_environment }}        
 
           Press ENTER to continue, or Ctrl+C to abort
       when: not force_deployment
@@ -89,7 +88,7 @@
 
           Helm release: {{ helm_release_name }}-green
 
-          This may impact production traffic.
+          Production environment: {{ active_production_environment }}
 
           Press ENTER to continue, or Ctrl+C to abort
       when: not force_deployment
@@ -119,7 +118,7 @@
         msg: |
           =======================================
           [SUCCESS] Green environment removed
-          You can now run your deployment again
+          You can now run the deployment again.
           =======================================
   when: cleanup_choice.user_input == '2'
 
@@ -144,13 +143,12 @@
     include_tasks: switch-production-traffic.yaml
   when: cleanup_choice.user_input == '3'
 
-
 # ==================== CANCEL ====================
 - name: Operation cancelled
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
+      ===================================
       Operation cancelled
       Both environments still deployed
-      ════════════════════════════════════════
+      ===================================
   when: cleanup_choice.user_input == '4'

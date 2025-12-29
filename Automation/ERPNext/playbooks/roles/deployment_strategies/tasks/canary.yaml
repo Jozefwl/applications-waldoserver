@@ -31,9 +31,9 @@
               enabled: false
           image:
             tag: "{{ new_erpnext_image_tag }}"
-          replicaCount: 1  # Start with single replica for canary
+          replicaCount: 1  # deploy a single replica during initial canary install
           ingress:
-            enabled: false  # We'll create ingress separately
+            enabled: false  # disable ingress creation to not route to canary
 
     - name: Merge canary values with existing values
       ansible.builtin.set_fact:
@@ -45,6 +45,7 @@
       when: canary_rollback | bool
       ignore_errors: True
 
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy canary release
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-canary"
