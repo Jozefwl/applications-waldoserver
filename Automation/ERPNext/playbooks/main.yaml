@@ -34,20 +34,6 @@
         dest: "{{ playbook_dir }}/kubeconfig.yaml"
         flat: true
 
-    # - name: Check if cacert exists
-    #   ansible.builtin.stat:
-    #     path: "{{ cacert_path }}"
-    #   register: cacert_check
-
-    # - name: Stop execution when cacert doesn't exist
-    #   ansible.builtin.fail:
-    #     msg: "Cacert not found at {{ cacert_path }}"
-    #   when: not cacert_check.stat.exists
-
-    # - name: Set cacert
-    #   ansible.builtin.set_fact:
-    #     cacert: "{{ cacert_path }}"
-
 - name: Check kubeconfig variable and ip
   hosts: localhost
   gather_facts: false
@@ -62,7 +48,7 @@
       ansible.builtin.set_fact:
         kubeconfig: "{{ playbook_dir }}/kubeconfig.yaml"
 
-    - name: Set kubeconfig path for localhost usage # DIRTY !!! FIXMEBRO
+    - name: Set kubeconfig path for localhost usage
       ansible.builtin.set_fact:
         kubeconfig_local: "{{ playbook_dir }}/kubeconfig.yaml"
 
@@ -74,7 +60,7 @@
         mode: "0600"
       when: kubeconfig_stat.stat.exists
 
-    - name: Update kubeconfig server to 127.0.0.1
+    - name: Update kubeconfig server to target server
       ansible.builtin.replace:
         path: "{{ playbook_dir }}/kubeconfig.yaml"
         regexp: 'server: https://[^:]+:[0-9]+'
