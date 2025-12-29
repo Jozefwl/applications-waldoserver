@@ -13,14 +13,9 @@
           Press enter to continue or Ctrl+C to abort
       when: not (force_recreate | default(false) | bool)
 
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing HELM values
+      includ_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Define the helm values patch

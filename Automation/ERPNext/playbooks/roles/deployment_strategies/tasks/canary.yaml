@@ -13,14 +13,8 @@
           traffic split: 10% canary / 90% stable
 
     # ==================== LOAD BASE VALUES ====================
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    - name: Load existing HELM values
+      includ_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY CANARY ====================
     - name: Define canary helm values patch
