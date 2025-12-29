@@ -10,14 +10,9 @@
           namespace: {{ kubernetes_namespace }}
           chart: {{ helm_chart_path }}
     
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing HELM values
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     - name: Define the helm values patch
       ansible.builtin.set_fact:
@@ -28,10 +23,12 @@
             type: 
               type: RollingUpdate  # This maps to .Values.deploymentStrategy.type
 
+    # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Merge rolling strategy with existing values
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy/upgrade ERPNext with rolling strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
@@ -45,88 +42,11 @@
         atomic: true  # Automatically rolls back on failure
       register: helm_release
 
-    # - name: Display debug message
-    #   debug:
-    #     msg: "Helm release status: {{ helm_release.status | default('unknown') }}"
 
-    # - name: Read helm values file
-    #   ansible.builtin.slurp:
-    #     src: "{{ helm_chart_path }}/values.yaml"
-    #   register: helmchart_values_raw
-
-    # - name: Parse values into a fact
-    #   ansible.builtin.set_fact:
-    #     helmchart_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
-
-    # - name: Display debug message
-    #   debug:
-    #     msg: "tenant https://{{ helmchart_values.ingress.hosts[0].host }}/"
-
+    # =================== WAIT FOR JOBS ==================
     - name: Wait for all jobs in namespace to complete
-      block:
-      - name: Get all jobs in namespace
-        kubernetes.core.k8s_info:
-          kubeconfig: "{{ kubeconfig }}"
-          kind: Job
-          namespace: "{{ kubernetes_namespace }}"
-        register: all_jobs
+      include_tasks: shared/wait-for-jobs.yaml
 
-    - name: Wait for each job to complete
-      kubernetes.core.k8s_info:
-        kubeconfig: "{{ kubeconfig }}"
-        kind: Job
-        namespace: "{{ kubernetes_namespace }}"
-        name: "{{ item.metadata.name }}"
-      loop: "{{ all_jobs.resources }}"
-      register: job_wait
-      until: 
-        - job_wait.resources[0].status.succeeded | default(0) > 0
-        # OR job_wait.resources[0].status.failed | default(0) > 0
-      retries: 100
-      delay: 7
-      loop_control:
-        label: "{{ item.metadata.name }}"
-
+    # ==================== PING FIRST TENANT ====================
     - name: Ping first tenant until it's available
-      ansible.builtin.shell: |
-        curl -s -o /dev/null -w "%{http_code}" "https://{{ helmchart_values.ingress.hosts[0].host }}/"
-      register: tenant_check
-      retries: 100
-      delay: 5
-      until: tenant_check.stdout | int < 400
-      when: helm_release is succeeded
-
-
-    # - name: Display release status
-    #   debug:
-    #     msg: "Helm release status: {{ helm_release.status }}"
-
-  rescue:
-    - name: Confirm rollback deployment
-      pause:
-        prompt: |
-          -------------- ROLLBACK AFTER HELM FAILURE --------------
-          Press enter to continue or Ctrl+C to abort
-      when: helm_release is failed
-
-    - name: Manual rollback if atomic failed
-      kubernetes.core.helm:
-        kubeconfig: "{{ kubeconfig }}"
-        name: "{{ helm_release_name }}"
-        chart_ref: "{{ helm_chart_path }}"
-        release_namespace: "{{ kubernetes_namespace }}"
-        state: present
-      register: rollback_result
-      ignore_errors: true
-      when: helm_release is failed
-
-    - name: Get rollback status
-      command: "helm rollback {{ helm_release_name }} 0 -n {{ kubernetes_namespace }}"
-      register: helm_rollback
-      ignore_errors: true
-      when: rollback_result is failed
-
-    - name: Display fail message
-      fail:
-        msg: "Deployment failed and rollback was attempted. Check 'helm history {{ helm_release_name }} -n {{ kubernetes_namespace }}' for details."
-      when: helm_release is failed
+      ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml

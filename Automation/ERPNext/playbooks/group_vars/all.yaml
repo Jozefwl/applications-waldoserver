@@ -4,7 +4,7 @@ kubernetes_namespace: erpnext
 helm_release_name: frappe-bench
 helm_chart_path: "{{ playbook_dir }}/../../../Applications/ERPNext/erpnext-official/erpnext"
 deployment_tag: production
-new_erpnext_image_tag: v15.87.1
+new_erpnext_image_tag: v15.92.3
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 first_install: false
 
@@ -32,6 +32,11 @@ cleanup_old_env: false     # Auto-delete old environment after switch
 pod_ready_timeout: 600     # 10 minutes for pods to be ready
 job_timeout: 1000          # 15 minutes for jobs to complete
 health_check_retries: 20   # Health check attempts after deployment
+
+# Canary configuration
+# 1 = 10%, 2 = 20% .... 9 = 90%, 10 = 100%
+stable_weight: 9
+canary_weight: 1
 
 # Preview to production domain mapping
 preview_domain_mapping:

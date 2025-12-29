@@ -1,5 +1,5 @@
 # ================ WEIGHTED ROUND ROBIN ====================
-- name: Create TraefikService for weighted routing
+- name: Update TraefikService without Canary
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig }}"
@@ -14,13 +14,10 @@
           services:
             - name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
               port: 8080
-              weight: "{{ stable_weight }}"
-            - name: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
-              port: 8080
-              weight: "{{ canary_weight }}"
+              weight: 10  
 
 # =============== MAKE PRODUCTION INGRESSROUTE =================
-- name: Create IngressRoute for production
+- name: Update IngressRoute for production without Canary
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig }}"
@@ -43,13 +40,38 @@
         tls:
           secretName: erpnext-tls
 
-# ============ DELETE DEFAULT INGRESS =================
-# Is backing this up a good idea?
-- name: Remove default helm Ingress
+- name: Confirm rollback of Canary
+  pause: 
+    prompt: |
+      Please confirm Canary rollback by pressing Ctrl+C then C
+      Otherwise press Ctrl+C then A to not rollback
+
+- name: Set ansible facts for old blocking syncjob deletion
+  ansible.builtin.set_fact:
+    source_release: "{{ helm_release_name }}"
+    dest_release: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
+
+- name: Delete old sync job blocking PVC
   kubernetes.core.k8s:
     state: absent
-    kubeconfig: "{{ kubeconfig }}"
-    api_version: networking.k8s.io/v1
-    kind: Ingress
-    name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
+    kind: Job
+    name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
     namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
+
+
+# ============ ROLLBACK CANARY =================
+- name: Remove canary release
+  kubernetes.core.helm:
+    name: "{{ helm_release_name }}-canary"
+    kubeconfig_path: "{{ kubeconfig }}"
+    release_namespace: "{{ kubernetes_namespace }}"
+    state: absent
+    wait: true
+    wait_timeout: 600s
+    purge: true
+
+# ============ STOP PLAYBOOK HERE =================
+- name: Stop playbook execution
+  meta: end_play

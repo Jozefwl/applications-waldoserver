@@ -32,10 +32,10 @@
 - name: Deployment complete
   ansible.builtin.debug:
     msg: |
-      ════════════════════════════════════════
+      ========================================
       [SUCCESS] DEPLOYMENT COMPLETE
-      ════════════════════════════════════════
+      ========================================
       Active: {{ target_env | upper }}
       Removed: {{ current_env | upper if current_env != 'none' else 'N/A' }}
       Image: {{ new_erpnext_image_tag }}
-      ════════════════════════════════════════
+      ========================================

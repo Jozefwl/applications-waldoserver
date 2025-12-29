@@ -1,0 +1,85 @@
+# ================= TRAFFIC MIRRORING =================
+- name: Update TraefikService for mirroring without shadow
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: TraefikService
+      metadata:
+        name: frappe-bench-mirror
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        mirroring:
+          # 1. Main Destination
+          name: "{{ helm_release_name }}-{{ kubernetes_namespace }}"
+          port: 8080
+
+# ================= MAKE PRODUCTION INGRESSROUTE =================
+- name: Update IngressRoute for production without shadow
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: frappe-bench-erpnext-route
+        namespace: "{{ kubernetes_namespace }}"
+      spec:
+        entryPoints:
+          - websecure
+        routes:
+          - match: "Host(`tenant1.erp.waldhauser.sk`) || Host(`tenant2.erp.waldhauser.sk`) || Host(`tenant3.erp.waldhauser.sk`)"
+            kind: Rule
+            services:
+              # Point the IngressRoute to the TraefikService created above
+              - name: frappe-bench-mirror
+                kind: TraefikService
+                port: 8080
+        tls:
+          secretName: erpnext-tls
+
+- name: Confirm rollback of Shadow
+  pause: 
+    prompt: |
+      Please confirm Shadow rollback by pressing Ctrl+C then C
+      Otherwise press Ctrl+C then A to not rollback
+
+- name: Set ansible facts for old blocking syncjob deletion
+  ansible.builtin.set_fact:
+    source_release: "{{ helm_release_name }}"
+    dest_release: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
+
+- name: Delete old sync job blocking PVC
+  kubernetes.core.k8s:
+    state: absent
+    kind: Job
+    name: "sync-{{ source_release | regex_replace('-', '') }}-to-{{ dest_release | regex_replace('-', '') }}"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
+
+- name: Delete old fix-config job blocking PVC
+  kubernetes.core.k8s:
+    state: absent
+    kind: Job
+    name: "fix-config-{{ dest_release }}-shadow"
+    namespace: "{{ kubernetes_namespace }}"
+    kubeconfig: "{{ kubeconfig }}"
+  ignore_errors: yes
+
+# ============ ROLLBACK SHADOW =================
+- name: Remove shadow release
+  kubernetes.core.helm:
+    name: "{{ helm_release_name }}-shadow"
+    kubeconfig_path: "{{ kubeconfig }}"
+    release_namespace: "{{ kubernetes_namespace }}"
+    state: absent
+    wait: true
+    wait_timeout: 600s
+    purge: true
+
+# ============ STOP PLAYBOOK HERE =================
+- name: Stop playbook execution
+  meta: end_play

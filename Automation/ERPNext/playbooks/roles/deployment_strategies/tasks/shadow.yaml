@@ -12,14 +12,8 @@
           chart: {{ helm_chart_path }}
 
     # ==================== LOAD BASE VALUES ====================
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    - name: Load existing HELM values
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY shadow ====================
     - name: Define shadow helm values patch
@@ -45,19 +39,22 @@
             tag: "{{ new_erpnext_image_tag }}"
           ingress:
             enabled: false  # no ingress, just traffic mirroring
-          persistence:
-            enabled: true
-            existingClaim: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
 
     - name: Merge shadow values with existing values
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(shadow_helm_patch, recursive=True) }}"
 
+    # ==================== ROLLBACK SHADOW IF TAG IS SET ====================
+    - name: Rollback shadow when tag is set 
+      include_tasks: shadow/rollback-shadow.yaml
+      when: shadow_rollback | bool
+      ignore_errors: True
+
     # =========== COPY MARIADB ===============
     - name: Copy mariaDB from PROD -> SHADOW
       include_tasks: shadow/copy-mariadb.yaml
 
-    # =========== DEPLOY SHADOW ===============
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy shadow release
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-shadow"

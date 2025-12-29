@@ -13,33 +13,8 @@
           traffic split: 10% canary / 90% stable
 
     # ==================== LOAD BASE VALUES ====================
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
-
-    # ==================== GET CURRENT INGRESS ====================
-    # - name: Get existing ingress configuration
-    #   kubernetes.core.k8s_info:
-    #     kind: Ingress
-    #     name: "{{ helm_release_name }}-erpnext"
-    #     namespace: "{{ kubernetes_namespace }}"
-    #     kubeconfig: "{{ kubeconfig }}"
-    #   register: existing_ingress
-    #   failed_when: existing_ingress.resources | length == 0
-
-    # - name: Extract tenant hosts from existing ingress
-    #   set_fact:
-    #     tenant_hosts: "{{ existing_ingress.resources[0].spec.rules | map(attribute='host') | list }}"
-    #     tls_secret: "{{ existing_ingress.resources[0].spec.tls[0].secretName }}"
-
-    # - name: Display detected tenants
-    #   debug:
-    #     msg: "Detected tenants: {{ tenant_hosts | join(', ') }}"
+    - name: Load existing HELM values
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY CANARY ====================
     - name: Define canary helm values patch
@@ -50,24 +25,21 @@
               enabled: false
           image:
             tag: "{{ new_erpnext_image_tag }}"
-          replicaCount: 1  # Start with single replica for canary
-          nameOverride: "{{ helm_release_name }}-canary"
-          fullnameOverride: "{{ helm_release_name }}-canary"
-          service:
-            name: "{{ helm_release_name }}-canary-erpnext"
-            labels:
-              version: canary
-              traffic-split: "true"
+          replicaCount: 1  # deploy a single replica during initial canary install
           ingress:
-            enabled: false  # We'll create ingress separately
-          persistence:
-            enabled: true
-            existingClaim: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
+            enabled: false  # disable ingress creation to not route to canary
 
     - name: Merge canary values with existing values
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(canary_helm_patch, recursive=True) }}"
 
+    # ==================== ROLLBACK CANARY IF TAG IS SET ====================
+    - name: Rollback canary when tag is set 
+      include_tasks: canary/rollback-canary.yaml
+      when: canary_rollback | bool
+      ignore_errors: True
+
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy canary release
       kubernetes.core.helm:
         name: "{{ helm_release_name }}-canary"
@@ -90,7 +62,7 @@
       ansible.builtin.include_tasks: shared/sync-pvc.yaml
       vars:
         source_release: "{{ helm_release_name }}"
-        dest_release: "{{ helm_release_name }}-canary"
+        dest_release: "{{ helm_release_name }}-canary-{{ kubernetes_namespace }}"
 
     # ==================== CREATE CANARY ROUTING ====================
     - name: Create canary routing

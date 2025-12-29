@@ -13,15 +13,11 @@
           Press enter to continue or Ctrl+C to abort
       when: not (force_recreate | default(false) | bool)
 
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
+    # ==================== LOAD BASE VALUES ====================
+    - name: Load existing HELM values
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
-
+    # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Define the helm values patch
       ansible.builtin.set_fact:
         helm_patch:
@@ -35,6 +31,7 @@
       ansible.builtin.set_fact:
         helm_values: "{{ existing_helm_values | combine(helm_patch, recursive=True) }}"
 
+    # ==================== APPLY HELM RELEASE ====================
     - name: Deploy/upgrade ERPNext with recreate strategy
       kubernetes.core.helm:
         name: "{{ helm_release_name }}"
@@ -55,20 +52,3 @@
       # ==================== PING FIRST TENANT ====================
     - name: Ping first tenant until it's available
       ansible.builtin.include_tasks: shared/healthcheck-first-tenant.yaml
-
-  rescue:
-    - name: Confirm rollback deployment
-      pause:
-        prompt: |
-          -------------- ROLLBACK AFTER HELM FAILURE --------------
-          Press enter to continue or Ctrl+C to abort
-      when: helm_release is failed
-
-    - name: Rollback on failure
-      kubernetes.core.helm:
-        name: "{{ helm_release_name }}"
-        release_namespace: "{{ kubernetes_namespace }}"
-        kubeconfig: "{{ kubeconfig }}"
-        state: present
-      register: rollback_result
-      ignore_errors: true

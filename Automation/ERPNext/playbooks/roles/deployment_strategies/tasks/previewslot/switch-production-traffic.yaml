@@ -5,18 +5,13 @@
   ansible.builtin.pause:
     prompt: |
       
-      ════════════════════════════════════════════════════════════════════════════════════
+      ===================================
       Ready to Switch Production Traffic
-      ════════════════════════════════════════════════════════════════════════════════════
+      ===================================
       Current Environment: {{ current_env | upper if current_env != 'none' else 'NONE (First deployment)' }}
       Switch To Environment: {{ target_env | upper }}
       Service: {{ helm_release_name }}-{{ target_env }}-erpnext:8080
-      
-      Production Domains:
-      {% for mapping in preview_domain_mapping %}
-      - {{ mapping.production }}
-      {% endfor %}
-      ════════════════════════════════════════════════════════════════════════════════════
+      ===================================
       
       Press ENTER to switch production traffic to {{ target_env | upper }}
       Or Ctrl+C then 'A' to abort

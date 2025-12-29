@@ -4,7 +4,7 @@
     - name: Gather facts for timestamp
       setup:
         gather_subset:
-          - min
+          - min # minimum fact gathering for fetching of time from host machine
 
     - name: Figure out source and destination
       set_fact:

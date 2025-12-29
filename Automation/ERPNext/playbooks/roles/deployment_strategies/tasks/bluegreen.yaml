@@ -60,14 +60,8 @@
 
 
     # ==================== LOAD BASE VALUES ====================
-    - name: Load existing Helm values
-      ansible.builtin.slurp:
-        src: "{{ helm_chart_path }}/values.yaml"
-      register: helmchart_values_raw
-
-    - name: Parse existing values into a fact
-      ansible.builtin.set_fact:
-        existing_helm_values: "{{ helmchart_values_raw.content | b64decode | from_yaml }}"
+    - name: Load existing HELM values
+      ansible.builtin.include_tasks: shared/load-helm-values.yaml
 
     # ==================== DEPLOY NEW ENVIRONMENT ====================
     - name: Define {{ target_env }} helm values patch
@@ -176,10 +170,12 @@
       ansible.builtin.include_tasks: previewslot/preview-routing.yaml
       when: not (first_install | bool)
 
-      # ==================== CREATE TENANTS ==================== TODO:FIX
-    # - name: Create additional tenants
-    #   ansible.builtin.include_tasks: extra-tenants.yaml
-    #   when: first_install | bool
+      # ==================== CREATE TENANTS ==================== 
+      # TODO: FIX
+      # This is done manually using kubectl apply -f /Applications/ERPNext/custom_jobs/create-tenant1.yaml
+      # - name: Create additional tenants
+      #   ansible.builtin.include_tasks: extra-tenants.yaml
+      #   when: first_install | bool
 
       # ==================== SYNCHRONIZE PVCs ====================
     - name: Synchronize PVCs
