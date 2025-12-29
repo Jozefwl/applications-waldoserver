@@ -46,6 +46,11 @@
       Please confirm Shadow rollback by pressing Ctrl+C then C
       Otherwise press Ctrl+C then A to not rollback
 
+- name: Set ansible facts for old blocking syncjob deletion
+  ansible.builtin.set_fact:
+    source_release: "{{ helm_release_name }}"
+    dest_release: "{{ helm_release_name }}-shadow-{{ kubernetes_namespace }}"
+
 - name: Delete old sync job blocking PVC
   kubernetes.core.k8s:
     state: absent
