@@ -22,15 +22,31 @@ case $choice in
 esac
 
 # create monitoring file
-filename="${strategy}-monitoring.txt"
+filename="${strategy}-$(date +%Y-%m-%dT%H:%M:%S)-monitoring.txt"
 
-read -p "Press enter to save date of begin of monitoring"
+read -p "Press enter to save date of begin of DEPLOY monitoring"
 begin_time=$(date +%Y-%m-%dT%H:%M:%S)
-echo "Beginning: $begin_time" > "$filename"
+echo "Beginning: $begin_time" >> "$filename"
 
-read -p "Press enter to save date of end of monitoring"
+read -p "Press enter to save timestamp during monitoring"
+timestamp_time=$(date +%Y-%m-%dT%H:%M:%S)
+echo "Timestamp: $timestamp_time" >> "$filename"
+
+read -p "Press enter to save date of end of DEPLOY monitoring"
 end_time=$(date +%Y-%m-%dT%H:%M:%S)
 echo "End: $end_time" >> "$filename"
+
+read -p "Press enter to save date of begin of ROLLBACK monitoring"
+beginrb_time=$(date +%Y-%m-%dT%H:%M:%S)
+echo "ROLLBACK Beginning: $beginrb_time" >> "$filename"
+
+read -p "Press enter to save timestamp during ROLLBACK monitoring"
+timestamprb_time=$(date +%Y-%m-%dT%H:%M:%S)
+echo "ROLLBACK Timestamp: $timestamprb_time" >> "$filename"
+
+read -p "Press enter to save date of end of ROLLBACK monitoring"
+endrb_time=$(date +%Y-%m-%dT%H:%M:%S)
+echo "ROLLBACK End: $endrb_time" >> "$filename"
 
 echo ""
 echo "monitoring saved to $filename"

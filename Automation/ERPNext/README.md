@@ -22,6 +22,20 @@ sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="rol
 sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="ramped"
 ```
 
+## Blue/Green 
+
+- Deploy Blue/Green Initial environment
+
+```bash
+sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="bluegreen" -e first_install=True 
+```
+
+- Deploy Blue/Green 
+
+```bash
+sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="bluegreen" 
+```
+
 ## Canary 
 - Deploy Canary
 

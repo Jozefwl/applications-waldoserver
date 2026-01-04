@@ -1,8 +1,7 @@
 # applications-waldoserver
 This repository contains deployment yamls and documentation for my server cluster.
 
-![Helm Chart Version](https://img.shields.io/badge/Helm%20chart-yes-blue)
-![Repository](https://img.shields.io/badge/Does_it_work-probably-orange)
+![Repository](https://img.shields.io/badge/Status-Functional-orange)
 ![License](https://img.shields.io/badge/License-MIT-darkgreen)
 
 ![Helm](https://img.shields.io/badge/Helm-0F1689?style=for-the-badge&logo=Helm&labelColor=0F1689&logoColor=white)
@@ -19,3 +18,7 @@ This repository contains deployment yamls and documentation for my server cluste
 You should be able to get the files from /vars for any application, apply them via kubectl or helm and run it on kubernetes instantly.
 
 Additionally, you can find all apps deployed on my cluster via helm here, change their configs and deploy them yourself.
+
+## ERPNext automation
+
+You can find commands for executing each strategy in \Automation\ERPNext\README.md
