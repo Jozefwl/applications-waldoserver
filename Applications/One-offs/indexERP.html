@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ERP Waldhauser</title>
+    <meta
+      name="description"
+      content="The only ERP you'll ever need. Enterprise Resource Planning done with taste and precision."
+    />
+    <style>
+      :root {
+        --bg: #0e59ca;
+        --card: #0b1220;
+        --muted: #9aa7b2;
+        --accent: #0ea5a1;
+        --glass: rgba(255, 255, 255, 0.035);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial;
+      }
+      html,
+      body {
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      body {
+        background: linear-gradient(
+          180deg,
+          #000000 0%,
+          #12233d 50%,
+          #082f50 100%
+        );
+        color: #ffffff;
+        -webkit-font-smoothing: antialiased;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .wrap > * {
+        min-width: 0;
+      }
+
+      .hero {
+        padding: 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .kicker {
+        color: var(--accent);
+        font-weight: 700;
+        letter-spacing: 1px;
+        background: linear-gradient(
+          90deg,
+          rgba(14, 165, 161, 0.14),
+          rgba(14, 165, 161, 0.05)
+        );
+        padding: 6px 10px;
+        border-radius: 999px;
+        width: max-content;
+        font-size: 13px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 44px;
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+      }
+      p.lead {
+        margin: 0;
+        color: var(--muted);
+        font-size: 18px;
+        max-width: 65ch;
+      }
+      .cta {
+        margin-top: 18px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        max-width: 20em;
+      }
+      .btn {
+        background: var(--accent);
+        color: #042023;
+        padding: 12px 18px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 6px 18px rgba(14, 165, 161, 0.12);
+        transition: all 0.2s ease;
+        display: inline-block;
+        max-width: 20em;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(14, 165, 161, 0.18);
+      }
+      .btn.secondary {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        font-weight: 600;
+      }
+      .tenant-links {
+        display: flex;
+        gap: 18px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+      }
+      .tenant-links .btn {
+        background: var(--glass);
+        color: #e6eef3;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        font-weight: 600;
+      }
+      .features {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .card {
+        background: var(--glass);
+        padding: 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.02);
+      }
+      .card h4 {
+        margin: 0 0 6px 0;
+        font-size: 14px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .aside {
+        padding: 28px;
+        border-left: 1px solid rgba(255, 255, 255, 0.02);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        justify-content: center;
+        align-items: center;
+      }
+      .logo {
+        width: 120px;
+        height: 120px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(2, 6, 23, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+      }
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      footer.small {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .disclaimer {
+        font-size: 12px;
+        color: var(--muted);
+        max-width: 320px;
+        text-align: center;
+      }
+      .tenant-block {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .tenant-block .badge {
+        height: 22px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 2px 6px;
+        object-fit: contain;
+      }
+
+      @media (max-width: 920px) {
+        .wrap {
+          grid-template-columns: 1fr;
+          padding: 0;
+        }
+        .aside {
+          border-left: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.02);
+        }
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 12px;
+        }
+        .hero {
+          padding: 24px;
+        }
+        h1 {
+          font-size: 32px;
+        }
+        p.lead {
+          font-size: 16px;
+        }
+        .features {
+          grid-template-columns: 1fr;
+        }
+        .tenant-links {
+          gap: 12px;
+        }
+        .btn {
+          padding: 10px 16px;
+          font-size: 14px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        body {
+          padding: 8px;
+        }
+        .hero {
+          padding: 16px;
+          gap: 16px;
+        }
+        h1 {
+          font-size: 24px;
+          line-height: 1.1;
+        }
+        p.lead {
+          font-size: 14px;
+        }
+        .cta {
+          flex-direction: column;
+          gap: 10px;
+        }
+        .btn {
+          width: 100%;
+          text-align: center;
+          padding: 12px 16px;
+        }
+        .btn.secondary {
+          width: 100%;
+        }
+        .tenant-links {
+          flex-direction: column;
+        }
+        .tenant-block {
+          width: 100%;
+        }
+        .tenant-block .btn {
+          width: 100%;
+        }
+        .features {
+          gap: 10px;
+        }
+        .card {
+          padding: 12px;
+        }
+        .card h4 {
+          font-size: 13px;
+        }
+        .card p {
+          font-size: 12px;
+        }
+        .aside {
+          padding: 16px;
+          gap: 12px;
+        }
+        .logo {
+          width: 100px;
+          height: 100px;
+        }
+        .disclaimer {
+          font-size: 11px;
+        }
+        footer.small {
+          font-size: 11px;
+        }
+        .kicker {
+          font-size: 12px;
+          padding: 4px 8px;
+        }
+        div[style*="margin-top:22px"] {
+          font-size: 9px;
+          margin-top: 16px !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      class="wrap"
+      role="main"
+      aria-label="ERP Waldhauser - Enterprise resource planning"
+    >
+      <div class="hero">
+        <div class="kicker">ERP WALDHAUSER</div>
+        <h1>The only ERP you'll ever need.</h1>
+        <p class="lead">
+          Built for modern enterprises that expect clarity, control and an
+          "almost" hands-free experience. Enterprise Resource Planning that gets
+          your business organised and helps you dominate the market.
+        </p>
+
+        <div class="cta">
+          <a
+            class="btn"
+            href="https://waldhauser.sk/contact"
+            onclick="alert('You will now be redirected to the contact page.')"
+            >Request a demo</a
+          >
+          <a
+            class="btn secondary"
+            href="https://github.com/Jozefwl/applications-waldoserver/tree/main/Documentation"
+            onclick="alert('You will now be redirected to the GitHub documentation.')"
+            >Read the brochure</a
+          >
+        </div>
+
+        <!-- new tenant links -->
+        <div class="tenant-links">
+          <div class="tenant-block">
+            <a
+              class="btn"
+              href="https://tenant1.erp.waldhauser.sk/najlepsi"
+              target="_blank"
+              rel="noopener"
+              >Tenant 1</a
+            >
+            <img
+              class="badge"
+              src="https://monitoring.waldoserver.top/api/badge/11/status"
+              alt="Tenant 1 status"
+            />
+          </div>
+
+          <div class="tenant-block">
+            <a
+              class="btn"
+              href="https://tenant2.erp.waldhauser.sk/simfonium"
+              target="_blank"
+              rel="noopener"
+              >Tenant 2</a
+            >
+            <img
+              class="badge"
+              src="https://monitoring.waldoserver.top/api/badge/12/status"
+              alt="Tenant 2 status"
+            />
+          </div>
+
+          <div class="tenant-block">
+            <a
+              class="btn"
+              href="https://tenant3.erp.waldhauser.sk/tateko"
+              target="_blank"
+              rel="noopener"
+              >Tenant 3</a
+            >
+            <img
+              class="badge"
+              src="https://monitoring.waldoserver.top/api/badge/13/status"
+              alt="Tenant 3 status"
+            />
+          </div>
+        </div>
+
+        <div class="features" aria-label="Features">
+          <div class="card">
+            <h4>One Platform</h4>
+            <p>
+              Accounting, inventory, HR and reporting fully integrated so you
+              don't have to perform ERP gymnastics.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Privacy & Compliance</h4>
+            <p>
+              Enterprise-grade controls and reports for auditors who enjoy long
+              meetings in dark rooms.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Scalable</h4>
+            <p>
+              Grows with you from three users to thousands. No awkward roleplay
+              required, unless requested.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Support</h4>
+            <p>
+              Very professional support. We deal with serious issues whether you
+              need assistance with ERP or assistance with ERP.
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-top: 22px; color: var(--muted); font-size: 10px">
+          <strong>The best kind of ERP.</strong><br />
+          We plan resources. We plan enterprises. If your imagination wandered
+          toward <em>other</em> definitions of ERP, we wink politely and return
+          to the backlog.
+        </div>
+      </div>
+
+      <aside class="aside" aria-labelledby="brand">
+        <div id="brand" class="logo" title="ERP Waldhauser">
+          <img
+            src="https://cdn.waldhauser.sk/erp/erpman.jpg"
+            alt="fat man thumbs up"
+          />
+        </div>
+        <div class="disclaimer">
+          Military-grade enterprise ERP, reliable with multiple backup
+          solutions.<br />
+          For ERP in a SFW environment, please consult your HR department.
+        </div>
+        <footer class="small">
+          &copy; {{YEAR}} Jozef Waldhauser - All rights reserved.
+        </footer>
+      </aside>
+    </div>
+
+    <script>
+      document.querySelectorAll("footer.small").forEach((f) => {
+        f.innerHTML = f.innerHTML.replace("{{YEAR}}", new Date().getFullYear());
+      });
+    </script>
+  </body>
+</html>
