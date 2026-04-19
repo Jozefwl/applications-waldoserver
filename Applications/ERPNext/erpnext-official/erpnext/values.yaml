@@ -57,7 +57,8 @@ nginx:
     type: ClusterIP
     port: 8080
   resources: {}
-  nodeSelector: {}
+  nodeSelector:
+    power: low
   tolerations: []
   affinity: {}
   # Custom topologySpreadConstraints (uncomment and modify to override defaults)
@@ -98,7 +99,8 @@ worker:
       type: ClusterIP
       port: 8000
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     args: []
@@ -115,7 +117,8 @@ worker:
       targetCPU: 75
       targetMemory: 75
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     livenessProbe:
@@ -137,7 +140,8 @@ worker:
       targetCPU: 75
       targetMemory: 75
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     livenessProbe:
@@ -159,7 +163,8 @@ worker:
       targetCPU: 75
       targetMemory: 75
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     livenessProbe:
@@ -175,7 +180,8 @@ worker:
   scheduler:
     replicaCount: 1
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     livenessProbe:
@@ -254,7 +260,8 @@ socketio:
     initialDelaySeconds: 5
     periodSeconds: 10
   resources: {}
-  nodeSelector: {}
+  nodeSelector:
+      power: low
   tolerations: []
   affinity: {}
   service:
@@ -332,7 +339,8 @@ jobs:
     enabled: false
     backoffLimit: 0
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
 
@@ -342,7 +350,8 @@ jobs:
     fixVolume: true
     backoffLimit: 0
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
     envVars: []
@@ -367,7 +376,8 @@ jobs:
       limits:
         memory: "1Gi"
         cpu: "500m"
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
 
@@ -378,7 +388,8 @@ jobs:
     siteName: "erp.cluster.local"
     backoffLimit: 0
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
 
@@ -389,7 +400,8 @@ jobs:
     withFiles: true
     backoffLimit: 0
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
 
@@ -400,7 +412,8 @@ jobs:
     skipFailing: false
     backoffLimit: 0
     resources: {}
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     tolerations: []
     affinity: {}
 
@@ -413,7 +426,8 @@ jobs:
     containers: []
     restartPolicy: Never
     volumes: []
-    nodeSelector: {}
+    nodeSelector:
+      power: low
     affinity: {}
     tolerations: []
 
