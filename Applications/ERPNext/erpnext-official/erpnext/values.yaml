@@ -466,6 +466,8 @@ redis-cache:
       redis: 6379
     persistence:
       enabled: false
+    nodeSelector:
+      power: low
 
 redis-queue:
   image:
@@ -483,6 +485,8 @@ redis-queue:
       redis: 6379
     persistence:
       enabled: false
+    nodeSelector:
+      power: low
 
 mariadb:
   image:
