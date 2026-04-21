@@ -6,8 +6,8 @@ metadata:
   namespace: {{ .Values.namespace }}
   annotations:
     {{- if .Values.ingress.nginx }}
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     {{- else if .Values.ingress.traefik }}
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     traefik.ingress.kubernetes.io/router.tls: "true"

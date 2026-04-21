@@ -16,9 +16,13 @@ certSecretName: cloudflare-origin-tls
 configMapName: cdn-nginx-config
 serviceName: cdn-service
 port: 80
-host: cdn.waldhauser.sk
+host: cdn.fabrikanazemiaky.eu
 
 ingressName: cdn-ingress
+ingress:
+  enabled: true
+  nginx: true     # or false
+  traefik: false  # or true
 
 pvcName: cdn-pvc
 pvName: cdn-pv
