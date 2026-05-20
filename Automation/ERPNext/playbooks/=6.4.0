@@ -1,0 +1,6 @@
+Starting galaxy collection install process
+Process install dependency map
+Starting collection install process
+Downloading https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/kubernetes-core-6.4.0.tar.gz to /Users/jozef/.ansible/tmp/ansible-local-15267k_7_e75s/tmpqyy7zx_1/kubernetes-core-6.4.0-1vhc48g_
+Installing 'kubernetes.core:6.4.0' to '/Users/jozef/.ansible/collections/ansible_collections/kubernetes/core'
+kubernetes.core:6.4.0 was installed successfully

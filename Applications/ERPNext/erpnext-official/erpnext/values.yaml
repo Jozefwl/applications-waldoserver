@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # Default environment name, changed during bluegreen, canary, shadow deployment
-environment: 
+environment:
   name: production
 
 # Configure external database host
@@ -15,6 +15,11 @@ dbRootPassword: "MySecurePassword123"
 # dbExistingSecret: ""
 # dbExistingSecretPasswordKey: "password"
 
+# Configure external redis host
+externalRedis:
+  cache: ""
+  queue: ""
+
 # Deployment Strategy Configuration
 # Options: RollingUpdate, Recreate (only k8s defaults)
 deploymentStrategy:
@@ -23,7 +28,7 @@ deploymentStrategy:
 
 image:
   repository: frappe/erpnext
-  tag: v15.87.1 # Default
+  tag: v16.19.1 # Default
   pullPolicy: IfNotPresent
 
 nginx:
@@ -213,33 +218,50 @@ worker:
       command:
         - bash
         - -c
-        - echo "Ping backing services";
-        {{- if .Values.mariadb.enabled }}
-        {{- if eq .Values.mariadb.architecture "replication" }}
-        - wait-for-it {{ .Release.Name }}-mariadb-primary:{{ .Values.mariadb.primary.service.ports.mysql }} -t 1;
-        {{- else }}
-        - wait-for-it {{ .Release.Name }}-mariadb:{{ .Values.mariadb.primary.service.ports.mysql }} -t 1;
-        {{- end }}
-        {{- else if .Values.dbHost }}
-        - wait-for-it {{ .Values.dbHost }}:{{ .Values.mariadb.primary.service.ports.mysql }} -t 1;
-        {{- end }}
-        {{- if index .Values "redis-cache" "host" }}
-        - wait-for-it {{ .Release.Name }}-redis-cache-master:{{ index .Values "redis-cache" "master" "containerPorts" "redis" }} -t 1;
-        {{- else if index .Values "redis-cache" "host" }}
-        - wait-for-it {{ index .Values "redis-cache" "host" }} -t 1;
-        {{- end }}
-        {{- if index .Values "redis-queue" "host" }}
-        - wait-for-it {{ .Release.Name }}-redis-queue-master:{{ index .Values "redis-queue" "master" "containerPorts" "redis" }} -t 1;
-        {{- else if index .Values "redis-queue" "host" }}
-        - wait-for-it {{ index .Values "redis-queue" "host" }} -t 1;
-        {{- end }}
-        {{- if .Values.postgresql.host }}
-        - wait-for-it {{ .Values.postgresql.host }}:{{ .Values.postgresql.primary.service.ports.postgresql }} -t 1;
-        {{- else if .Values.postgresql.enabled }}
-        - wait-for-it {{ .Release.Name }}-postgresql:{{ .Values.postgresql.primary.service.ports.postgresql }} -t 1;
-        {{- end }}
+        - |-
+          echo "Pinging backing services";
+          {{- if (index .Values "mariadb-sts").enabled }}
+          wait-for-it {{ include "erpnext.fullname" . }}-mariadb-sts:3306 -t 1;
+          {{- else if (index .Values "postgresql-sts").enabled }}
+          wait-for-it {{ include "erpnext.fullname" . }}-postgresql-sts:5432 -t 1;
+          {{- else if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
+          (
+            wait-for-it {{ .Release.Name }}-mariadb-subchart:3306 -t 0 || \
+            wait-for-it {{ .Release.Name }}-mariadb:3306 -t 0 || \
+            wait-for-it {{ .Release.Name }}-mariadb-subchart-primary:3306 -t 0 || \
+            wait-for-it {{ .Release.Name }}-mariadb-primary:3306 -t 1
+          )
+          {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
+          (
+            wait-for-it {{ .Release.Name }}-postgresql-subchart:5432 -t 0 || \
+            wait-for-it {{ .Release.Name }}-postgresql:5432 -t 1
+          )
+          {{- else if or .Values.postgresql.enabled (index .Values "postgresql-subchart").enabled }}
+          wait-for-it {{ .Release.Name }}-postgresql-subchart:5432 -t 1;
+          {{- else if .Values.dbHost }}
+          wait-for-it {{ .Values.dbHost }}:{{ .Values.dbPort }} -t 1;
+          {{- end }}
+          {{- if .Values.externalRedis.cache }}
+          wait-for-it $(echo {{ .Values.externalRedis.cache }} | sed 's,redis://,,') -t 1;
+          {{- else if (index .Values "valkey-cache").enabled }}
+          wait-for-it {{ .Release.Name }}-valkey-cache:6379 -t 1;
+          {{- else if (index .Values "dragonfly-cache").enabled }}
+          wait-for-it {{ .Release.Name }}-dragonfly-cache:6379 -t 1;
+          {{- else if (index .Values "redis-cache").enabled }}
+          wait-for-it {{ .Release.Name }}-redis-cache-master:6379 -t 1;
+          {{- end }}
+          {{- if .Values.externalRedis.queue }}
+          wait-for-it $(echo {{ .Values.externalRedis.queue }} | sed 's,redis://,,') -t 1;
+          {{- else if (index .Values "valkey-queue").enabled }}
+          wait-for-it {{ .Release.Name }}-valkey-queue:6379 -t 1;
+          {{- else if (index .Values "dragonfly-queue").enabled }}
+          wait-for-it {{ .Release.Name }}-dragonfly-queue:6379 -t 1;
+          {{- else if (index .Values "redis-queue").enabled }}
+          wait-for-it {{ .Release.Name }}-redis-queue-master:6379 -t 1;
+          {{- end }}
     initialDelaySeconds: 15
     periodSeconds: 5
+    timeoutSeconds: 5
 
 socketio:
   replicaCount: 2
@@ -261,7 +283,7 @@ socketio:
     periodSeconds: 10
   resources: {}
   nodeSelector:
-      power: low
+    power: low
   tolerations: []
   affinity: {}
   service:
@@ -294,9 +316,9 @@ ingress:
   enabled: true
   className: "traefik"  # Change to "nginx" if using nginx-ingress
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: "websecure" # also change to nginx annotations 
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure" # also change to nginx annotations
     traefik.ingress.kubernetes.io/router.tls: "true" # this one as well
-    cert-manager.io/cluster-issuer: "letsencrypt-prod" 
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
   - host: tenant1.erp.waldhauser.sk
     paths:
@@ -357,8 +379,20 @@ jobs:
     envVars: []
     command: []
     args: []
+  # ------------------------------------------------------------------------------
+  # Site creation jobs
+  #
+  # IMPORTANT:
+  # - Only ONE site-creation job should be enabled at a time.
+  # - If BOTH `createSite.enabled` and `createMultipleSite.enabled` are set to true,
+  #   then `createSite` will take precedence and `createMultipleSite` will be ignored.
+  #
+  # Backward compatibility:
+  # - `createSite` is enabled by default to preserve existing behavior.
+  # ------------------------------------------------------------------------------
 
   createSite:
+    # jobName: ""
     enabled: true
     forceCreate: false
     siteName: "tenant1.erp.waldhauser.sk"
@@ -381,6 +415,41 @@ jobs:
     tolerations: []
     affinity: {}
 
+  createMultipleSites:
+    # jobName: ""
+    enabled: false
+    forceCreate: false
+    sites:
+    - name: "erp.cluster.local"
+      installApps:
+      - "erpnext"
+      # - name: "accounts.cluster.local"
+      #   installApps:
+      #     - "erpnext"
+      #     - "payments"
+    adminPassword: "changeit"
+    adminExistingSecret: ""
+    adminExistingSecretKey: "password"
+    dbType: "mariadb"
+    backoffLimit: 0
+    resources: {}
+    nodeSelector:
+      power: low
+    tolerations: []
+    affinity: {}
+  # ------------------------------------------------------------------------------
+  # Site deletion jobs
+  #
+  # IMPORTANT:
+  # - Only ONE site-deletion job should be enabled at a time.
+  # - If BOTH `dropSite.enabled` and `dropMultipleSites.enabled` are set to true,
+  #   then `dropSite` will take precedence and `dropMultipleSites` will be ignored.
+  #
+  # Backward compatibility:
+  # - `dropSite` remains the default behavior.
+  # - `dropMultipleSites` is an additive, non-breaking feature.
+  # ------------------------------------------------------------------------------
+
   dropSite:
     # jobName: ""
     enabled: false
@@ -392,6 +461,39 @@ jobs:
       power: low
     tolerations: []
     affinity: {}
+
+  dropMultipleSites:
+    # jobName: ""
+    enabled: false
+
+    # Force deletion of sites without confirmation
+    forced: false
+
+    # List of sites to be dropped
+    sites:
+    - name: "site1.example.com"
+    - name: "site2.example.com"
+
+    backoffLimit: 0
+    resources: {}
+    nodeSelector:
+      power: low
+    tolerations: []
+    affinity: {}
+  # ------------------------------------------------------------------------------
+  # Backup jobs
+  #
+  # IMPORTANT:
+  # - Only ONE backup job should be enabled at a time.
+  # - If BOTH `backup.enabled` and `backupMultipleSites.enabled` are true,
+  #   then `backup` takes precedence and `backupMultipleSites` is ignored.
+  #
+  # Backward compatibility:
+  # - `backup` remains the default behavior for existing users.
+  # - `backupMultipleSites` is an additive, non-breaking feature.
+  #
+  # This applies to both `backup` and `backupMultipleSites`.
+  # ------------------------------------------------------------------------------
 
   backup:
     # jobName: ""
@@ -405,11 +507,85 @@ jobs:
     tolerations: []
     affinity: {}
 
+  backupMultipleSites:
+    # jobName: ""
+    enabled: false
+
+    # Include files directory in the backup
+    withFiles: true
+
+    # List of sites to back up
+    sites:
+    - name: "erp.cluster.local"
+      # - name: "accounts.cluster.local"
+
+    backoffLimit: 0
+    resources: {}
+    nodeSelector:
+      power: low
+    tolerations: []
+    affinity: {}
+  # ------------------------------------------------------------------------------
+  # Migrate jobs
+  #
+  # IMPORTANT:
+  # - Only ONE migrate job should be enabled at a time.
+  # - If BOTH `migrate.enabled` and `migrateMultipleSites.enabled` are true,
+  #   then `migrate` takes precedence and `migrateMultipleSites` is ignored.
+  #
+  # Backward compatibility:
+  # - `migrate` remains unchanged for existing users.
+  # - `migrateMultipleSites` is additive, non-breaking feature.
+  #
+  # This applies to both `migrate` and `migrateMultipleSites`,
+  # ------------------------------------------------------------------------------
+
   migrate:
     # jobName: ""
     enabled: false
     siteName: "erp.cluster.local"
     skipFailing: false
+    backoffLimit: 0
+    resources: {}
+    nodeSelector:
+      power: low
+    tolerations: []
+    affinity: {}
+
+  migrateMultipleSites:
+    # jobName: ""
+    enabled: false
+
+    # Skip failing patches during migration
+    skipFailing: false
+
+    # List of sites to migrate (processed sequentially)
+    sites:
+    - name: "erp.cluster.local"
+      # - name: "accounts.cluster.local"
+
+    backoffLimit: 0
+    resources: {}
+    nodeSelector:
+      power: low
+    tolerations: []
+    affinity: {}
+
+  clearCache:
+    enabled: false
+    # jobName: ""
+    # If empty, falls back to erpnext.serviceAccountName helper
+    serviceAccountName: ""
+    initContainer:
+      enabled: false
+      image: alpine/kubectl:1.35.0
+      deployment:
+        # If empty → <fullname>-gunicorn
+        name: ""
+      # Rollout wait timeout
+      timeout: 600s
+    redisFlush:
+      enabled: false
     backoffLimit: 0
     resources: {}
     nodeSelector:
@@ -450,73 +626,143 @@ securityContext:
   # runAsNonRoot: true
   # runAsUser: 1000
 
-redis-cache:
-  image:
-    registry: docker.io
-    tag: "latest"
-  # https://github.com/bitnami/charts/tree/master/bitnami/redis
-  enabled: true
-  # host: ""
-  architecture: standalone
-  auth:
-    enabled: false
-    sentinel: false
-  master:
-    containerPorts:
-      redis: 6379
-    persistence:
-      enabled: false
-    nodeSelector:
-      power: low
-
-redis-queue:
-  image:
-    registry: docker.io
-    tag: "latest"
-  # https://github.com/bitnami/charts/tree/master/bitnami/redis
-  enabled: true
-  # host: ""
-  architecture: standalone
-  auth:
-    enabled: false
-    sentinel: false
-  master:
-    containerPorts:
-      redis: 6379
-    persistence:
-      enabled: false
-    nodeSelector:
-      power: low
-
-mariadb:
-  image:
-    registry: docker.io
-    tag: "latest"
-  # https://github.com/bitnami/charts/tree/master/bitnami/mariadb
+mariadb-sts:
   enabled: false
-  auth:
-    rootPassword: "changeit"
-    username: "erpnext"
-    password: "changeit"
-    replicationPassword: "changeit"
-  primary:
-    service:
-      ports:
-        mysql: 3306
-    extraFlags: >-
-      --skip-character-set-client-handshake
-      --skip-innodb-read-only-compressed
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
+  image:
+    repository: mariadb
+    tag: "10.6"
+    pullPolicy: IfNotPresent
+  rootPassword: "changeit"
+  persistence:
+    # storageClass: "nfs"
+    size: 8Gi
+  resources: {}
+  myCnf: |
+    [mysqld]
+    skip-character-set-client-handshake
+    skip-innodb-read-only-compressed
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+
+
+mariadb-subchart:
+  # To enable the classic Bitnami MariaDB subchart, set enabled to true
+  # and set mariadb-sts.enabled to false.
+  enabled: false
+  image:
+    repository: bitnamilegacy/mariadb
+    tag: "10.6.17-debian-11-r10"
+  # Values passed to the bitnami/mariadb subchart can be defined here.
+
+# alias for mariadb-subchart.enabled for backward compatibility
+mariadb:
+  enabled: false
+
+dragonfly-cache:
+  # Using DragonflyDB: https://www.dragonflydb.io/
+  # https://github.com/dragonflydb/dragonfly/tree/main/helm/dragonfly
+  # To enable DragonflyDB for cache, set enabled to true
+  # and set valkey-cache.enabled to false.
+  enabled: false
+  # host: ""
+  # No persistence for cache
+
+dragonfly-queue:
+  # Using DragonflyDB: https://www.dragonflydb.io/
+  # https://github.com/dragonflydb/dragonfly/tree/main/helm/dragonfly
+  # To enable DragonflyDB for queue, set enabled to true
+  # and set valkey-queue.enabled to false.
+  enabled: false
+  # host: ""
+  # Persistence can be enabled for queue
+  storage:
+    enabled: false
+    # The size of the PersistentVolumeClaim.
+    size: 8Gi
+    # The name of the StorageClass to use. If not specified, the default StorageClass will be used.
+    # storageClassName: "nfs"
 
 postgresql:
-  # https://github.com/bitnami/charts/tree/master/bitnami/postgresql
+  enabled: false # alias for postgresql-subchart.enabled
+
+postgresql-subchart:
+  # To enable the classic Bitnami PostgreSQL subchart, set enabled to true
+  # and set postgresql.enabled to false.
   enabled: false
-  # host: ""
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: "14"
+  # Values passed to the bitnami/postgresql subchart can be defined here.
+
+postgresql-sts:
+  enabled: false
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  postgresUser: "postgres"
+  postgresPassword: "changeit"
+  persistence:
+    # storageClass: "nfs"
+    size: 8Gi
+  resources: {}
+
+redis-cache:
+  # To enable the classic Bitnami Redis subchart for cache, set enabled to true
+  # and set dragonfly-cache.enabled to false.
+  enabled: true
+  architecture: standalone
   auth:
-    username: "postgres"
-    postgresPassword: "changeit"
-  primary:
-    service:
-      ports:
-        postgresql: 5432
+    enabled: false
+  image:
+    repository: bitnamilegacy/redis
+    tag: "7.0"
+  master:
+    persistence:
+      enabled: false
+    nodeSelector:
+      power: low
+  replica:
+    replicaCount: 0
+    nodeSelector:
+      power: low
+  # Values passed to the bitnami/redis subchart can be defined here.
+
+redis-queue:
+  # To enable the classic Bitnami Redis subchart for queue, set enabled to true
+  # and set dragonfly-queue.enabled to false.
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  image:
+    repository: bitnamilegacy/redis
+    tag: "7.0"
+  master:
+    persistence:
+      enabled: false
+    nodeSelector:
+      power: low
+  replica:
+    replicaCount: 0
+    nodeSelector:
+      power: low
+  # Values passed to the bitnami/redis subchart can be defined here.
+
+valkey-cache:
+  # To enable the official Valkey subchart for cache, set enabled to true
+  # and set dragonfly-cache.enabled and redis-cache.enabled to false.
+  enabled: false
+  image:
+    repository: valkey/valkey
+    tag: "7.2" # check for latest version
+  # Values passed to the valkey/valkey subchart can be defined here.
+
+valkey-queue:
+  # To enable the official Valkey subchart for queue, set enabled to true
+  # and set dragonfly-queue.enabled and redis-queue.enabled to false.
+  enabled: false
+  image:
+    repository: valkey/valkey
+    tag: "7.2" # check for latest version
+  # Values passed to the valkey/valkey subchart can be defined here.

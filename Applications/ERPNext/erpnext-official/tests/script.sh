@@ -20,30 +20,23 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main
 echo -e "\n"
 
 echo -e "\e[1m\e[4mAdd Helm Repositories\e[0m"
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add nfs-ganesha-server-and-external-provisioner https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner
-helm repo add frappe https://helm.erpnext.com
 helm repo update
 echo -e "\n"
 
-echo -e "\e[1m\e[4mCreate mariadb release from bitnami/mariadb helm chart\e[0m"
-kubectl create namespace mariadb
-helm install mariadb -n mariadb bitnami/mariadb -f tests/mariadb/values.yaml --version 11.5.7 --wait
-echo -e "\n"
-
 echo -e "\e[1m\e[4mCreate in-cluster release from nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner helm chart\e[0m"
-kubectl create namespace nfs
-helm install in-cluster -n nfs nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner -f tests/nfs/values.yaml --wait
+kubectl create namespace nfs || echo "namespace nfs already exists"
+helm upgrade --install in-cluster -n nfs nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner -f tests/nfs/values.yaml --wait
 echo -e "\n"
 
 echo -e "\e[1m\e[4mCreate frappe-bench release from frappe/erpnext helm chart\e[0m"
-kubectl create namespace erpnext
-helm install frappe-bench --namespace erpnext frappe/erpnext -f tests/erpnext/values.yaml --wait --timeout=15m0s
+kubectl create namespace erpnext || echo "namespace erpnext already exists"
+helm upgrade --install frappe-bench --namespace erpnext ./erpnext -f tests/erpnext/values.yaml --wait --timeout=15m0s
 echo -e "\n"
 
 echo -e "\e[1m\e[4mCreate mysite.localhost\e[0m"
 helm template frappe-bench \
-  -n erpnext erpnext \
+  -n erpnext ./erpnext \
   -f tests/erpnext/values.yaml \
   -f tests/erpnext/values-job-create-mysite.yaml \
   -s templates/job-create-site.yaml \
@@ -60,12 +53,12 @@ curl -sS -H "Host: mysite.localhost" http://k3s/api/method/ping
 echo -e "\n"
 
 echo -e "\e[1m\e[4mUpgrade frappe-bench release with chart from PR\e[0m"
-helm upgrade frappe-bench -n erpnext erpnext -f tests/erpnext/values.yaml --wait --timeout=15m0s
+helm upgrade frappe-bench -n erpnext ./erpnext -f tests/erpnext/values.yaml --wait --timeout=15m0s
 echo -e "\n"
 
 echo -e "\e[1m\e[4mMigrate mysite.localhost\e[0m"
 helm template frappe-bench \
-  -n erpnext erpnext \
+  -n erpnext ./erpnext \
   -f tests/erpnext/values.yaml \
   -f tests/erpnext/values-job-migrate-mysite.yaml \
   -s templates/job-migrate-site.yaml > /tmp/migrate-job.yaml
@@ -93,8 +86,6 @@ echo -e "\e[1m\e[4mCleanup\e[0m"
 kubectl delete ingress -n erpnext --all
 kubectl delete jobs -n erpnext --all
 helm delete --wait -n erpnext frappe-bench
-helm delete --wait -n mariadb mariadb
 helm delete --wait -n nfs in-cluster
 kubectl delete pvc -n erpnext --all
-kubectl delete pvc -n mariadb --all
 kubectl delete pvc -n nfs --all

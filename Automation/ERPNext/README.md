@@ -4,7 +4,7 @@
 - Deploy Recreate
 
 ```bash
-sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="canary"
+sudo ansible-playbook main.yaml -e TARGET_NODE=local -e deployment_strategy="recreate"
 ```
 
 ## Rolling
